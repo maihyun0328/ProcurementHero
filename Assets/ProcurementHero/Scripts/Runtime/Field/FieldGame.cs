@@ -358,6 +358,8 @@ namespace ProcurementHero.Field
             Progress.Set(MissionIndex, snapshot);
             observedByMission[MissionIndex] = new HashSet<string>(observed);
             sound.Play(Sfx.Confirm);
+            if (toastRoutine != null) StopCoroutine(toastRoutine);
+            UIKit.Clear(toastRoot);
             HideNotebook();
             SetState(FieldState.Installing);
             BuildInstallHud();
