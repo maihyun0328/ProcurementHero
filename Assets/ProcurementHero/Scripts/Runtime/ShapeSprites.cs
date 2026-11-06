@@ -5,7 +5,34 @@ namespace ProcurementHero
     /// <summary>외부 그림 없이 쓰는 기본 도형 Sprite. 실행 시 한 번 생성해 재사용한다.</summary>
     public static class ShapeSprites
     {
-        static Sprite square, rounded, circle, triangle, glow;
+        static Sprite square, rounded, circle, triangle, glow, stripes;
+
+        /// <summary>'아직 조사하지 않음'을 색이 아닌 무늬로도 보이게 하는 사선 무늬(타일).</summary>
+        public static Sprite Stripes
+        {
+            get
+            {
+                if (stripes) return stripes;
+                const int size = 32;
+                var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                {
+                    wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear, hideFlags = HideFlags.DontSave
+                };
+                var pixels = new Color32[size * size];
+                for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    int d = (x + y) % 16;
+                    byte a = (byte)(d < 5 ? 255 : 0);
+                    pixels[y * size + x] = new Color32(255, 255, 255, a);
+                }
+                tex.SetPixels32(pixels);
+                tex.Apply(false, true);
+                stripes = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+                stripes.hideFlags = HideFlags.DontSave;
+                return stripes;
+            }
+        }
 
         public static Sprite Square => square ? square : square = Make(4, 0, (x, y, s) => 1f);
 
