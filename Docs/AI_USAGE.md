@@ -47,6 +47,7 @@
 - 작업 중 iCloud 동기화 폴더 때문에 Unity 패키지 캐시가 깨져 에디터가 한 번 충돌했고, 생성 폴더(Library 일부)를 지우고 에디터를 다시 열어 복구했습니다.
 - 에디터 키 시뮬레이션의 한계 때문에 현장 단축키를 직전 프레임 비교 방식으로 감지하도록 바꿨습니다.
 - `FieldDatabase` 클래스를 다른 이름의 파일에 두어 에셋이 다시 불러와지지 않던 문제를 테스트가 찾아 별도 파일로 옮겼습니다.
+- field-polish(같은 날, `feature/field-polish`): 미션 2·3 배치·물품(이동형 발전기 추가)·메모·도착 문구를 AI가 다시 정했습니다(여전히 개발 초안). 이미지 생성 도구는 연결되어 있지 않아 모든 그림을 코드 도형으로 만들었고, 외부 이미지를 쓰지 않았습니다. 플레이 검증 중 도착 중 일시정지 무시·결과 수첩 깜빡임·말풍선 잘림을 찾아 고쳤습니다.
 
 ## 4. 사람이 검수해야 할 항목
 
@@ -69,3 +70,4 @@
 | 2026-11-04 | 상세 기획서 전달 → 게임 전체 구현·검증·빌드·문서 | `Assets/ProcurementHero/**`, `Docs/**`, ProjectSettings(제품명·해상도·빌드 씬) | (기록해 주세요) |
 | 2026-11-04 | 검토에서 나온 4가지 문제 수정 요청(튜토리얼 키보드 선택, 같은 엔딩의 새 기록 판정, 기록 초기화 후 타이틀 표시, 빌드 실패 시 이전 결과 삭제) | `GameManager.Mission.cs`, `SaveService.cs`, `GameManager.Screens.cs`, `GameManager.Overlays.cs`, `WindowsBuilder.cs`, 새 파일 `BuildPublisher.cs`, 새 테스트 `SaveServiceTests.cs` · `BuildPublisherTests.cs`, `Docs/README.md` | (기록해 주세요) |
 | 2026-11-06 | 기획서 2.0(현장 수첩)과 제작 프롬프트 v2 전달 → 새 씬·규칙·데이터·테스트 구현, 단계별 커밋, 작업 브랜치 푸시 시도 | `Scripts/Core/Field/**`, `Scripts/Runtime/Field/**`, `Scripts/Editor/Field*.cs`·`DefaultFieldData.cs`, `Data/Field/**`, `Scenes/FieldNotebook.unity`, 테스트 2개, 기존 `AudioService`·`GameSetup`·`GameValidator`·`WindowsBuilder` 일부, `Docs/**` | (기록해 주세요) |
+| 2026-11-06 | 현장 수첩 개선(탐색 의미, 미션 2·3 퍼즐 재설계, 수첩·페이지·도착·캐릭터·주민·설치 연출, 안정성) 구현·검증·커밋·푸시 시도 | `Scripts/Runtime/Field/**`(새 파일 `FieldBook.cs`), `Scripts/Core/Field/FieldRules.cs`, `ShapeSprites.cs`, `Scripts/Editor/DefaultFieldData.cs`·`FieldSetup.cs`·`FieldValidator.cs`, `Data/Field/*.asset`, 테스트 2개, `Docs/**` | (기록해 주세요) |
