@@ -40,6 +40,14 @@
 | 결과 공개 후에도 헤더에 "배송 차량이 출발했어요"가 남음 | "배송 완료 · 결과가 확정됐어요"로 바꿈 |
 | 보조 버튼이 흰 배경과 구분되지 않음 | 보조 버튼 색을 옅은 베이지로 변경 |
 
+## 3-1. v2 작업(2026-11-06)에서 있었던 일
+
+- 사용자가 준 기획서와 프롬프트 원문은 `Docs/v2/`에 보관했습니다.
+- 미션 1 수치는 기획서 그대로, 미션 2·3의 비용·효과·배치는 AI가 정한 개발 초안입니다(`draftNumbers`).
+- 작업 중 iCloud 동기화 폴더 때문에 Unity 패키지 캐시가 깨져 에디터가 한 번 충돌했고, 생성 폴더(Library 일부)를 지우고 에디터를 다시 열어 복구했습니다.
+- 에디터 키 시뮬레이션의 한계 때문에 현장 단축키를 직전 프레임 비교 방식으로 감지하도록 바꿨습니다.
+- `FieldDatabase` 클래스를 다른 이름의 파일에 두어 에셋이 다시 불러와지지 않던 문제를 테스트가 찾아 별도 파일로 옮겼습니다.
+
 ## 4. 사람이 검수해야 할 항목
 
 - [ ] 실제 Windows PC에서 처음부터 엔딩까지 플레이 (Mac에서는 Windows 실행을 확인하지 못함)
@@ -60,3 +68,4 @@
 | 2026-11-04 | Unity CLI 연동 여부 확인 | 없음 | 없음 |
 | 2026-11-04 | 상세 기획서 전달 → 게임 전체 구현·검증·빌드·문서 | `Assets/ProcurementHero/**`, `Docs/**`, ProjectSettings(제품명·해상도·빌드 씬) | (기록해 주세요) |
 | 2026-11-04 | 검토에서 나온 4가지 문제 수정 요청(튜토리얼 키보드 선택, 같은 엔딩의 새 기록 판정, 기록 초기화 후 타이틀 표시, 빌드 실패 시 이전 결과 삭제) | `GameManager.Mission.cs`, `SaveService.cs`, `GameManager.Screens.cs`, `GameManager.Overlays.cs`, `WindowsBuilder.cs`, 새 파일 `BuildPublisher.cs`, 새 테스트 `SaveServiceTests.cs` · `BuildPublisherTests.cs`, `Docs/README.md` | (기록해 주세요) |
+| 2026-11-06 | 기획서 2.0(현장 수첩)과 제작 프롬프트 v2 전달 → 새 씬·규칙·데이터·테스트 구현, 단계별 커밋, 작업 브랜치 푸시 시도 | `Scripts/Core/Field/**`, `Scripts/Runtime/Field/**`, `Scripts/Editor/Field*.cs`·`DefaultFieldData.cs`, `Data/Field/**`, `Scenes/FieldNotebook.unity`, 테스트 2개, 기존 `AudioService`·`GameSetup`·`GameValidator`·`WindowsBuilder` 일부, `Docs/**` | (기록해 주세요) |
