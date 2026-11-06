@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
 using ProcurementHero.Core.Field;
@@ -222,9 +224,13 @@ namespace ProcurementHero.Field
             rt.offsetMin = rt.offsetMax = Vector2.zero;
         }
 
+        /// <summary>관찰한 구역마다 '이 물품이 닿는 곳' 테두리. 물품 줄을 고르거나 마우스를 올리면 켠다.</summary>
+        readonly Dictionary<string, GameObject> zoneReach = new Dictionary<string, GameObject>();
+
         void DrawMap(FieldEvaluation preview)
         {
             UIKit.Clear(mapArea);
+            zoneReach.Clear();
             foreach (var p in Mission.paths)
                 AnchorRect(UIKit.Panel(mapArea, "Path", Theme.Hex(0xD8CBAE)).rectTransform, p.center, p.size);
             foreach (var o in Mission.obstacles)
@@ -257,9 +263,19 @@ namespace ProcurementHero.Field
                     UIKit.Text(zone, "Name", "조사 전", 16, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -22), new Vector2(150, 22));
                     continue;
                 }
+                var reach = UIKit.Panel(zone, "Reach", Theme.WithAlpha(Theme.Teal, 0.12f)).rectTransform;
+                reach.Fill();
+                reach.GetComponent<Image>().raycastTarget = false;
+                var reachLine = reach.gameObject.AddComponent<Outline>();
+                reachLine.effectColor = Theme.Teal;
+                reachLine.effectDistance = new Vector2(5, -5);
+                reachLine.useGraphicAlpha = false;
+                reach.gameObject.SetActive(false);
+                zoneReach[p.id] = reach.gameObject;
                 FieldArt.ProblemIcon(zone, p.kind, 40).Place(new Vector2(0.5f, 0.5f), new Vector2(0, 10), new Vector2(40, 40));
                 var name = UIKit.Text(zone, "Name", (p.required ? "" : "추가 · ") + p.displayName, 17, lit ? Theme.Navy : Color.white, TextAlignmentOptions.Center, true);
-                name.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -22), new Vector2(160, 24));
+                // 이름은 구역 위쪽에 둔다(구역 안의 설치 자리 이름과 겹치지 않게).
+                name.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -14), new Vector2(160, 24));
                 // 해결 예상은 색만이 아니라 표시 모양으로도 구분한다: 체크 = 밝아짐/해결, 점 세 개 = 그대로.
                 if (lit) FieldArt.Tick(zone, 26, Theme.Success).Place(new Vector2(1, 1), new Vector2(-16, -16), new Vector2(26, 26));
                 else UIKit.Text(zone, "Still", "…", 22, Color.white, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(1, 1), new Vector2(-18, -14), new Vector2(30, 24));
@@ -315,7 +331,7 @@ namespace ProcurementHero.Field
                 if (seen && !string.IsNullOrEmpty(p.memo))
                 {
                     // 관찰한 곳은 한 줄 메모를 남긴다.
-                    UIKit.Layout(card, 90, 190);
+                    UIKit.Layout(card, 150, 190);
                     t.text = $"<b>{p.displayName}</b>\n<size=15><color=#{ColorUtility.ToHtmlStringRGB(Theme.NavySoft)}>{p.memo}</color></size>";
                     t.rectTransform.Region(0, 0, 1, 0.48f);
                     t.enableAutoSizing = true;
@@ -353,8 +369,18 @@ namespace ProcurementHero.Field
                 FieldArt.ItemIcon(rt, item.visual, 100).Place(new Vector2(0, 0.5f), new Vector2(70, 0), new Vector2(100, 100));
                 var name = UIKit.Text(rt, "Name", item.displayName, 32, allowed ? Theme.Navy : Theme.NavySoft, TextAlignmentOptions.MidlineLeft, true);
                 name.rectTransform.Region(0, 0.5f, 0.62f, 0.95f).offsetMin = new Vector2(140, 0);
-                var hint = UIKit.Text(rt, "Hint", allowed ? item.hint : "이 자리에 설치 불가", 22, allowed ? Theme.TealDark : Theme.Danger, TextAlignmentOptions.MidlineLeft, !allowed);
-                hint.rectTransform.Region(0, 0.08f, 0.62f, 0.5f).offsetMin = new Vector2(140, 0);
+                // 이 자리에 놓으면 닿는 곳: 관찰한 문제 구역만 이름으로 알려 준다(관찰 전 구역은 숨김).
+                string hintText = allowed ? $"{item.hint}\n<b>닿는 곳</b> {ReachText(spot, itemId)}" : "이 자리에 설치 불가";
+                var hint = UIKit.Text(rt, "Hint", hintText, 22, allowed ? Theme.TealDark : Theme.Danger, TextAlignmentOptions.MidlineLeft, !allowed);
+                hint.rectTransform.Region(0, 0.04f, 0.62f, 0.52f).offsetMin = new Vector2(140, 0);
+                hint.enableAutoSizing = true;
+                hint.fontSizeMin = 15;
+                hint.fontSizeMax = 22;
+                if (allowed)
+                {
+                    var hover = row.gameObject.AddComponent<ReachHover>();
+                    hover.Changed = on2 => ShowReach(on2 ? itemId : null);
+                }
 
                 var price = UIKit.Rect(rt, "Price").Region(0.62f, 0.2f, 0.8f, 0.8f);
                 UIKit.Shape(price, "Coin", ShapeSprites.Circle, Theme.Hex(0xF2C14E), new Vector2(0, 0.5f), new Vector2(16, 0), new Vector2(28, 28)).raycastTarget = false;
@@ -369,6 +395,25 @@ namespace ProcurementHero.Field
             var tip = UIKit.Text(itemList, "Tip", "체크하면 이 자리에 하나 놓아요 · 다시 누르면 취소 · 다른 물품은 교체", 20, Theme.NavySoft, TextAlignmentOptions.Center);
             UIKit.Layout(tip, 40);
         }
+
+        string ReachText(FieldSpotEntry spot, string itemId)
+        {
+            var option = spot.options.FirstOrDefault(o => o.itemId == itemId);
+            var names = option == null ? new List<string>()
+                : Mission.problems.Where(p => option.solves.Contains(p.id) && observed.Contains(p.id)).Select(p => p.displayName).ToList();
+            return names.Count > 0 ? string.Join(" · ", names) : "살펴본 곳 중 없음";
+        }
+
+        /// <summary>고른 자리에 이 물품을 놓으면 닿는 관찰 구역을 지도에서 테두리로 보여 준다(null이면 끈다).</summary>
+        void ShowReach(string itemId)
+        {
+            var option = itemId == null ? null : Mission.Spot(SelectedSpot)?.options.FirstOrDefault(o => o.itemId == itemId);
+            foreach (var pair in zoneReach)
+                if (pair.Value) pair.Value.SetActive(option != null && option.solves.Contains(pair.Key));
+        }
+
+        /// <summary>테스트·확인용: 지금 지도에서 '닿는 곳' 테두리가 켜진 구역.</summary>
+        public IEnumerable<string> ReachShown => zoneReach.Where(p => p.Value && p.Value.activeSelf).Select(p => p.Key);
 
         public AssignOutcome ToggleItem(string itemId)
         {
@@ -529,5 +574,15 @@ namespace ProcurementHero.Field
             }
             if (target) target.localPosition = start;
         }
+    }
+
+    /// <summary>물품 줄을 키보드로 고르거나 마우스를 올렸을 때 지도에 닿는 범위를 켠다.</summary>
+    public class ReachHover : MonoBehaviour, ISelectHandler, IDeselectHandler, IPointerEnterHandler, IPointerExitHandler
+    {
+        public Action<bool> Changed;
+        public void OnSelect(BaseEventData e) => Changed?.Invoke(true);
+        public void OnDeselect(BaseEventData e) => Changed?.Invoke(false);
+        public void OnPointerEnter(PointerEventData e) => Changed?.Invoke(true);
+        public void OnPointerExit(PointerEventData e) => Changed?.Invoke(false);
     }
 }

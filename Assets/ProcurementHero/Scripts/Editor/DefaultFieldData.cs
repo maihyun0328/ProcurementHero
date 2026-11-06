@@ -128,7 +128,7 @@ namespace ProcurementHero.EditorTools
                 Problem("O", "바깥 줄", FieldProblemKind.Heat, false, false, new Vector2(-4.6f, -4.6f), new Vector2(-4f, -3.4f), new Vector2(6.4f, 4.2f),
                     new Vector2(-5.4f, -3.4f), "햇볕 아래서 기다리기 힘들어요", "이제 밖에서 기다리기 한결 나아요")
             };
-            Memo(m2, ("H", "대기실이 더워 부채질"), ("W", "복도 쉼터 물통이 빔"), ("O", "현관 밖 줄 · 뙤약볕"));
+            Memo(m2, ("H", "작은 방이라 냉방장치 하나면 충분"), ("W", "복도 쉼터 물통이 빔"), ("O", "뙤약볕 · 열린 현관 바로 앞"));
             m2.items = new List<FieldItemEntry>
             {
                 Item("aircon", "냉방장치", 40, FieldItemVisual.AirConditioner, "실내 한 곳 냉방"),

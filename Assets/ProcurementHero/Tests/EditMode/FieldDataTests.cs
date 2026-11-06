@@ -119,6 +119,27 @@ namespace ProcurementHero.Tests
         }
 
         [Test]
+        public void ClinicCoolingCluesMatchRealEffects()
+        {
+            var m = M("f2");
+            // 관찰 메모: 대기실은 작은 방이라 냉방장치 하나면 충분, 바깥 줄은 열린 현관 바로 앞.
+            StringAssert.Contains("냉방장치 하나면 충분", m.Problem("H").memo);
+            StringAssert.Contains("현관", m.Problem("O").memo);
+            StringAssert.Contains("현관", m.Item("bigcool").hint);
+            // 설명과 효과가 어긋나지 않는다: 대형 냉방기는 현관에서만 바깥까지, 냉방장치는 어디서나 실내 한 곳.
+            foreach (var spot in m.spots)
+            {
+                var big = spot.options.FirstOrDefault(o => o.itemId == "bigcool");
+                if (big != null) Assert.AreEqual(spot.id == "hall", big.solves.Contains("O"), spot.id);
+                foreach (var o in spot.options.Where(o => o.itemId == "aircon")) CollectionAssert.AreEqual(new[] { "H" }, o.solves, spot.id);
+            }
+            // 비용·판정은 바꾸지 않았다.
+            Assert.AreEqual(40, m.Item("aircon").cost);
+            Assert.AreEqual(60, m.Item("bigcool").cost);
+            Assert.AreEqual(85, m.budget);
+        }
+
+        [Test]
         public void Missions2And3ThreeStarPlansAreRealAlternatives()
         {
             foreach (var id in new[] { "f2", "f3" })
@@ -184,8 +205,9 @@ namespace ProcurementHero.Tests
                 CollectionAssert.AreEqual(seed.Data.obstacles.Select(o => o.clearedBy ?? ""), asset.obstacles.Select(o => o.clearedBy ?? ""), asset.name);
                 Assert.AreEqual(seed.Data.title, asset.title, asset.name);
                 Assert.AreEqual(seed.Data.arrivalLine, asset.arrivalLine, asset.name);
-                CollectionAssert.AreEqual(seed.Data.problems.Select(p => p.line + "|" + p.solvedLine + "|" + p.residentPosition),
-                    asset.problems.Select(p => p.line + "|" + p.solvedLine + "|" + p.residentPosition), asset.name);
+                CollectionAssert.AreEqual(seed.Data.problems.Select(p => p.line + "|" + p.solvedLine + "|" + p.residentPosition + "|" + p.memo),
+                    asset.problems.Select(p => p.line + "|" + p.solvedLine + "|" + p.residentPosition + "|" + p.memo), asset.name);
+                CollectionAssert.AreEqual(seed.Data.items.Select(i => i.hint), asset.items.Select(i => i.hint), asset.name);
                 CollectionAssert.AreEqual(seed.Data.spots.Select(sp => sp.id + "@" + sp.position), asset.spots.Select(sp => sp.id + "@" + sp.position), asset.name);
                 CollectionAssert.AreEqual(seed.Data.reactions.Select(r => $"{r.spotId}/{r.itemId}/{r.problemId}/{r.line}/{r.moveResident}/{r.residentPosition}"),
                     asset.reactions.Select(r => $"{r.spotId}/{r.itemId}/{r.problemId}/{r.line}/{r.moveResident}/{r.residentPosition}"), asset.name);
