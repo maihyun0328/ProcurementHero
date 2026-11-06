@@ -18,6 +18,10 @@ namespace ProcurementHero.Field
 
         public void ShowTitle()
         {
+            // 타이틀로 돌아올 때 남은 변경을 저장하고, 이어하기 정보를 저장 형식 그대로 다시 만든다.
+            bool hadSession = State != FieldState.Title && State != FieldState.Ending || saveDirty;
+            if (hadSession) SaveProgress();
+            RefreshResume();
             BeginScreen(FieldState.Title);
             world = FieldWorld.Build(worldRoot, database.missions[0], false);
             world.Delta = () => FieldDelta;
@@ -40,10 +44,18 @@ namespace ProcurementHero.Field
             var list = UIKit.Rect(card, "Menu").Region(0.15f, 0.12f, 0.85f, 0.58f);
             UIKit.VerticalList(list, 12).childForceExpandHeight = true;
             var buttons = new List<Selectable>();
-            int resume = Enumerable.Range(0, Progress.MissionCount).FirstOrDefault(i => Progress.Get(i) == null || !Progress.Get(i).Success);
-            if (Progress.HasAny && !Progress.IsComplete)
+            var r = Resume;
+            if (r != null && r.Phase == FieldSavePhase.Complete && Progress.IsComplete)
             {
-                buttons.Add(UIKit.Button(list, "Continue", $"이어하기 (현장 {resume + 1})", () => StartMission(resume)));
+                // 엔딩까지 본 저장: 이어하기 대신 엔딩 다시 보기(기록은 다시 올라가지 않음)와 새로 시작.
+                buttons.Add(UIKit.Button(list, "Replay", "엔딩 다시 보기", ShowEnding));
+                buttons.Add(UIKit.Button(list, "NewGame", "처음부터 시작", ConfirmNewGame, ButtonStyle.Secondary));
+            }
+            else if (r != null && r.HasProgress)
+            {
+                var m = database.missions[r.Current];
+                string step = r.Phase == FieldSavePhase.Review ? "재확인" : r.Phase == FieldSavePhase.Replan ? "다시 계획" : "살펴보기";
+                buttons.Add(UIKit.Button(list, "Continue", $"이어하기 · 현장 {r.Current + 1} {m.title} ({step})", ContinueGame));
                 buttons.Add(UIKit.Button(list, "NewGame", "처음부터 시작", ConfirmNewGame, ButtonStyle.Secondary));
             }
             else buttons.Add(UIKit.Button(list, "Start", "현장으로 출발", ConfirmNewGame));
@@ -72,22 +84,26 @@ namespace ProcurementHero.Field
 
         void ConfirmNewGame()
         {
-            if (Progress.HasAny)
+            if (Progress.HasAny || (Resume != null && Resume.HasProgress))
                 Confirm("처음부터 시작할까요?", "지금까지의 현장 결과와 관찰 기록이 초기화돼요.\n(최고 기록과 소리 설정은 그대로 남아요.)", "처음부터", StartNewGame, "취소");
             else StartNewGame();
         }
 
         public void StartNewGame()
         {
-            Progress.Reset();
-            observedByMission.Clear();
+            // 진행 저장과 메모리 진행을 함께 지운다(최고 기록·소리 설정은 그대로). 남은 저장 예약도 버려 옛 진행이 다시 쓰이지 않게 한다.
+            saveDirty = false;
+            FieldSave.Store.Delete();
+            ApplyRestored(null);
+            arrivedMissions.Clear();
             StartMission(0);
         }
 
         void QuitGame()
         {
-            Confirm("게임을 종료할까요?", "최고 기록과 설정은 저장돼 있어요.", "종료", () =>
+            Confirm("게임을 종료할까요?", "진행은 자동으로 저장돼요. 다음에 '이어하기'로 계속할 수 있어요.", "종료", () =>
             {
+                SaveProgress();
 #if UNITY_EDITOR
                 UnityEditor.EditorApplication.isPlaying = false;
 #else
@@ -330,6 +346,8 @@ namespace ProcurementHero.Field
                 return;
             }
             BeginScreen(FieldState.Ending);
+            savePhase = FieldSavePhase.Complete;
+            SaveProgress();
             endingFinal = false;
             EndingSceneIndex = -1;
             // 기록은 엔딩에 들어올 때 한 번만 등록한다. 건너뛰기·최종 화면은 다시 등록하지 않는다.

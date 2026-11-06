@@ -104,7 +104,9 @@ namespace ProcurementHero.Field
 
         void Start()
         {
-            if (enabled) ShowTitle();
+            if (!enabled) return;
+            LoadProgress();
+            ShowTitle();
         }
 
         /// <summary>현장 연출에 쓰는 시간. 수첩·일시정지·결과 창에서는 멈춘다.</summary>
@@ -263,6 +265,9 @@ namespace ProcurementHero.Field
 
             ShowBubble(problem, problem.line);
             if (!observed.Add(problem.id)) return; // 다시 봐도 기록이나 기록 연출은 반복하지 않는다.
+            if (!observedByMission.TryGetValue(MissionIndex, out var keep)) observedByMission[MissionIndex] = keep = new HashSet<string>();
+            keep.Add(problem.id);
+            MarkSaveDirty();
             // 담당자가 몸을 숙여 살피고 → 주민이 반응하고 → 기록 그림이 수첩으로 날아가 → 관찰 수가 오른다.
             world.PlayObserve(problem);
             world.MarkObserved(problem.id, true);
@@ -281,6 +286,150 @@ namespace ProcurementHero.Field
         }
 
         // ───────── 미션 ─────────
+
+        // ───────── 진행 자동 저장 ─────────
+
+        FieldSavePhase savePhase = FieldSavePhase.Explore;
+        bool saveDirty;
+        /// <summary>타이틀의 '이어하기'가 쓸 복원 정보(저장 파일 또는 지금 진행에서 만든 것).</summary>
+        FieldRestored resume;
+
+        public FieldSavePhase SavePhase => savePhase;
+        public FieldRestored Resume => resume;
+
+        /// <summary>바뀐 진행을 표시만 해 두고 그 프레임 끝(LateUpdate)에 한 번 저장한다. 매 프레임 쓰지 않는다.</summary>
+        void MarkSaveDirty() => saveDirty = true;
+
+        void LateUpdate()
+        {
+            if (saveDirty) SaveProgress();
+        }
+
+        IEnumerable<string> ObservedFor(int index) =>
+            observedByMission.TryGetValue(index, out var set) ? set : Enumerable.Empty<string>();
+
+        public void SaveProgress()
+        {
+            saveDirty = false;
+            if (!database) return;
+            var data = FieldSave.Capture(database.missions, Progress, ObservedFor, MissionIndex, savePhase, Plan, SelectedSpot);
+            FieldSave.Store.Write(FieldSave.ToJson(data));
+        }
+
+        void FlushSave()
+        {
+            if (saveDirty && enabled) SaveProgress();
+        }
+
+        // 종료 이벤트 하나에만 기대지 않는다: 진행이 바뀔 때마다 저장하고, 포커스를 잃거나 멈출 때도 남은 변경을 쓴다.
+        void OnApplicationQuit() => FlushSave();
+        void OnApplicationPause(bool pause) { if (pause) FlushSave(); }
+        void OnApplicationFocus(bool focus) { if (!focus) FlushSave(); }
+
+        /// <summary>저장 파일을 읽어 검증하고 메모리 진행에 적용한다. 손상·구버전이면 새 게임처럼 시작한다.</summary>
+        public void LoadProgress()
+        {
+            var text = FieldSave.Store.Read();
+            var data = FieldSave.Parse(text);
+            var restored = FieldSave.Restore(database.missions, data);
+            if (!string.IsNullOrEmpty(text) && restored == null)
+                Debug.LogWarning("[ProcurementHero] 진행 저장을 쓸 수 없어(손상 또는 다른 버전) 새로 시작합니다. 파일은 다음 저장 때 교체됩니다.");
+            if (restored != null)
+                foreach (var w in restored.Warnings) Debug.LogWarning("[ProcurementHero] 진행 복원: " + w);
+            ApplyRestored(restored);
+        }
+
+        void ApplyRestored(FieldRestored r)
+        {
+            Progress.Reset();
+            observedByMission.Clear();
+            resume = r;
+            saveDirty = false;
+            if (r == null)
+            {
+                MissionIndex = 0;
+                savePhase = FieldSavePhase.Explore;
+                Plan = new FieldPlan();
+                return;
+            }
+            for (int i = 0; i < r.Results.Length; i++)
+            {
+                if (r.Results[i] != null) Progress.Set(i, r.Results[i]);
+                observedByMission[i] = new HashSet<string>(r.Observed[i]);
+            }
+            MissionIndex = r.Current;
+            Mission = database.missions[r.Current];
+            Spec = Mission.ToSpec();
+            savePhase = r.Phase;
+            Plan = r.Draft ?? new FieldPlan();
+            SelectedSpot = r.SelectedSpot;
+            LastConfirmed = Progress.Get(r.Current);
+        }
+
+        /// <summary>지금 진행을 저장 형식으로 만들었다가 같은 검증으로 되살린다(앱을 다시 켰을 때와 같은 이어하기).</summary>
+        void RefreshResume()
+        {
+            if (!database) return;
+            resume = FieldSave.Restore(database.missions, FieldSave.Capture(database.missions, Progress, ObservedFor, MissionIndex, savePhase, Plan, SelectedSpot));
+        }
+
+        /// <summary>타이틀 '이어하기': 저장된 단계 그대로 되살린다(연출 중간 프레임은 되살리지 않는다).</summary>
+        public void ContinueGame()
+        {
+            var r = resume;
+            if (r == null)
+            {
+                StartMission(0);
+                return;
+            }
+            switch (r.Phase)
+            {
+                case FieldSavePhase.Review:
+                    StartMissionReview(r.Current);
+                    break;
+                case FieldSavePhase.Replan:
+                    StartMission(r.Current, replan: true, draft: r.Draft, spot: r.SelectedSpot);
+                    break;
+                case FieldSavePhase.Complete:
+                    ShowEnding();
+                    break;
+                default:
+                    StartMission(r.Current, draft: r.Draft, spot: r.SelectedSpot, keepObserved: true);
+                    break;
+            }
+        }
+
+        /// <summary>확정 결과를 바로 적용한 재확인 상태로 현장을 연다(설치 도중·결과 화면에서 종료했던 경우).</summary>
+        void StartMissionReview(int index)
+        {
+            var result = Progress.Get(index);
+            if (result == null)
+            {
+                StartMission(index, keepObserved: true);
+                return;
+            }
+            BeginScreen(FieldState.Installing);
+            MissionIndex = index;
+            Mission = database.missions[index];
+            Spec = Mission.ToSpec();
+            confirmLocked = true;
+            reviewChecked = false;
+            LastConfirmed = result;
+            observed.Clear();
+            if (observedByMission.TryGetValue(index, out var saved)) observed.UnionWith(saved);
+            Plan = new FieldPlan();
+            foreach (var pair in result.Assignments) Plan.Toggle(Spec, pair.Key, pair.Value);
+            SelectedSpot = Mission.spots.Count > 0 ? Mission.spots[0].id : null;
+            highlightUnsolved.Clear();
+            savePhase = FieldSavePhase.Review;
+            arrivedMissions.Add(index);
+            world = FieldWorld.Build(worldRoot, Mission, true);
+            world.Delta = () => FieldDelta;
+            foreach (var id in observed) world.MarkObserved(id, true);
+            world.ApplyInstant(result);
+            BuildHud();
+            OnInstalled();
+        }
 
         /// <summary>현장 카메라 기본 구도(엔딩에서 잠깐 다가갔다가 화면이 바뀌면 되돌린다).</summary>
         void ResetCamera()
@@ -311,7 +460,9 @@ namespace ProcurementHero.Field
             SetState(next);
         }
 
-        public void StartMission(int index, bool replan = false)
+        /// <param name="draft">이어하기: 확정 전(또는 재계획 중) 계획을 그대로 되살린다.</param>
+        /// <param name="keepObserved">이어하기: 이 현장에서 이미 관찰한 기록을 지우지 않는다.</param>
+        public void StartMission(int index, bool replan = false, FieldPlan draft = null, string spot = null, bool keepObserved = false)
         {
             BeginScreen(FieldState.Explore);
             MissionIndex = index;
@@ -322,7 +473,7 @@ namespace ProcurementHero.Field
 
             if (!observedByMission.TryGetValue(index, out var saved)) observedByMission[index] = saved = new HashSet<string>();
             observed.Clear();
-            if (replan) observed.UnionWith(saved);
+            if (replan || keepObserved) observed.UnionWith(saved);
             else saved.Clear();
 
             var previous = Progress.Get(index);
@@ -338,7 +489,14 @@ namespace ProcurementHero.Field
                 Plan = new FieldPlan();
                 highlightUnsolved.Clear();
             }
-            SelectedSpot = Mission.spots.Count > 0 ? Mission.spots[0].id : null;
+            if (draft != null)
+            {
+                Plan = new FieldPlan();
+                foreach (var pair in draft.Assignments) Plan.Toggle(Spec, pair.Key, pair.Value);
+            }
+            SelectedSpot = spot != null && Mission.Spot(spot) != null ? spot : Mission.spots.Count > 0 ? Mission.spots[0].id : null;
+            savePhase = replan ? FieldSavePhase.Replan : FieldSavePhase.Explore;
+            MarkSaveDirty();
 
             world = FieldWorld.Build(worldRoot, Mission, true);
             world.Delta = () => FieldDelta;
@@ -419,6 +577,9 @@ namespace ProcurementHero.Field
             LastConfirmed = snapshot;
             Progress.Set(MissionIndex, snapshot);
             observedByMission[MissionIndex] = new HashSet<string>(observed);
+            // 확정 즉시 저장한다. 설치 도중 꺼져도 다음 실행에서 이 결과를 적용한 재확인 상태로 이어진다.
+            savePhase = FieldSavePhase.Review;
+            SaveProgress();
             if (toastRoutine != null) StopCoroutine(toastRoutine);
             UIKit.Clear(toastRoot);
             StartCoroutine(ConfirmSequence(snapshot, screenToken));

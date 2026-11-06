@@ -312,6 +312,7 @@ namespace ProcurementHero.Field
         {
             if (State != FieldState.Notebook) return;
             SelectedSpot = spotId;
+            MarkSaveDirty();
             sound.Play(Sfx.Select);
             RefreshNotebook();
         }
@@ -421,6 +422,7 @@ namespace ProcurementHero.Field
             if (notebookBusy) return AssignOutcome.UnknownSpot;
             string before = Plan.ItemAt(SelectedSpot);
             var outcome = Plan.Toggle(Spec, SelectedSpot, itemId);
+            if (outcome == AssignOutcome.Assigned || outcome == AssignOutcome.Replaced || outcome == AssignOutcome.Cleared) MarkSaveDirty();
             sound.Play(outcome == AssignOutcome.Cleared ? Sfx.Uncheck : outcome == AssignOutcome.NotAllowed ? Sfx.Fail : Sfx.Check);
             RefreshNotebook();
             // 책 전체를 다시 펴지 않고, 바뀐 체크 칸만 짧게 움직인다.
