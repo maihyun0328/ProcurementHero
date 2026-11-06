@@ -1,0 +1,20 @@
+{
+    "name": "ProcurementHero.Editor",
+    "rootNamespace": "ProcurementHero.EditorTools",
+    "references": [
+        "ProcurementHero.Core",
+        "ProcurementHero.Runtime",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

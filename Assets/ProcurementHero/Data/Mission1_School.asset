@@ -1,0 +1,91 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 252ab4be7a9c1475fa644610e394f7fd, type: 3}
+  m_Name: Mission1_School
+  m_EditorClassIdentifier: 
+  id: m1
+  title: "\uD559\uAD50 \uCD95\uC81C\uB97C \uBC1D\uD600\uB77C"
+  facility: 0
+  facilityName: "\uC0C8\uBD04\uCD08\uB4F1\uD559\uAD50"
+  request: "\uCD95\uC81C\uAC00 \uC774\uD2C0 \uB0A8\uC558\uC5B4\uC694! \uAC15\uB2F9\uC774
+    \uB108\uBB34 \uC5B4\uB461\uACE0 \uBC29\uC1A1\uC774 \uC798 \uC548 \uB4E4\uB824\uC694."
+  budget: 140
+  deadlineDays: 2
+  targetPerformance: 70
+  itemNameA: "\uAC15\uB2F9 \uC870\uBA85"
+  itemNameB: "\uBC29\uC1A1\uC7A5\uCE58"
+  productsA:
+  - id: m1-a-basic
+    displayName: "\uD2BC\uD2BC \uC870\uBA85"
+    type: 0
+    purchaseCost: 40
+    maintenanceCost: 15
+    performance: 70
+    deliveryDays: 1
+    ecoScore: 40
+    summary: "\uAC12\uC774 \uC2F8\uACE0 \uBE68\uB9AC \uC624\uC9C0\uB9CC \uC804\uAE30\uB97C
+      \uB9CE\uC774 \uC368\uC694"
+  - id: m1-a-efficient
+    displayName: "\uC808\uC804 \uC870\uBA85"
+    type: 1
+    purchaseCost: 65
+    maintenanceCost: 5
+    performance: 85
+    deliveryDays: 2
+    ecoScore: 95
+    summary: "\uBC1D\uACE0 \uC804\uAE30\uB97C \uC544\uAEF4 \uC720\uC9C0\uBE44\uAC00
+      \uC801\uC5B4\uC694"
+  - id: m1-a-innovative
+    displayName: "\uACF5\uAC04\uB9DE\uCDA4 \uC870\uBA85"
+    type: 2
+    purchaseCost: 55
+    maintenanceCost: 5
+    performance: 78
+    deliveryDays: 2
+    ecoScore: 80
+    summary: "\uAC15\uB2F9 \uAD6C\uC5ED\uC5D0 \uB9DE\uCDB0 \uBE5B\uC744 \uB098\uB220
+      \uBE44\uCDB0\uC694"
+  productsB:
+  - id: m1-b-basic
+    displayName: "\uAE30\uBCF8 \uBC29\uC1A1"
+    type: 0
+    purchaseCost: 40
+    maintenanceCost: 15
+    performance: 70
+    deliveryDays: 1
+    ecoScore: 40
+    summary: "\uC124\uCE58\uAC00 \uC27D\uC9C0\uB9CC \uC18C\uB9AC\uAC00 \uC870\uAE08
+      \uD0C1\uD574\uC694"
+  - id: m1-b-efficient
+    displayName: "\uB610\uB837 \uBC29\uC1A1"
+    type: 1
+    purchaseCost: 65
+    maintenanceCost: 5
+    performance: 85
+    deliveryDays: 2
+    ecoScore: 90
+    summary: "\uB4B7\uC790\uB9AC\uAE4C\uC9C0 \uC18C\uB9AC\uAC00 \uB610\uB837\uD574\uC694"
+  - id: m1-b-innovative
+    displayName: "\uC18C\uC74C\uB300\uC751 \uBC29\uC1A1"
+    type: 2
+    purchaseCost: 55
+    maintenanceCost: 5
+    performance: 78
+    deliveryDays: 2
+    ecoScore: 80
+    summary: "\uC8FC\uBCC0 \uC18C\uC74C\uC5D0 \uB9DE\uCDB0 \uD06C\uAE30\uB97C \uC870\uC808\uD574\uC694"
+  reactionSuccess: "\uAC15\uB2F9\uC774 \uD658\uD574\uC9C0\uACE0 \uB178\uB798\uAC00
+    \uB610\uB837\uD558\uAC8C \uB4E4\uB824\uC694! \uCD95\uC81C \uC900\uBE44 \uB05D!"
+  reactionPartial: "\uC870\uAE08 \uB098\uC544\uC84C\uC9C0\uB9CC \uC544\uC9C1 \uC5B4\uB461\uAC70\uB098
+    \uC18C\uB9AC\uAC00 \uC791\uC740 \uACF3\uC774 \uC788\uC5B4\uC694."
+  reactionFail: "\uBB3C\uD488\uC740 \uC654\uC9C0\uB9CC \uCD95\uC81C \uC2DC\uAC04\uC5D0
+    \uC81C\uB300\uB85C \uC4F0\uAE30 \uC5B4\uB824\uC6E0\uC5B4\uC694."
