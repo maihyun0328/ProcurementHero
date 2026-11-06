@@ -304,6 +304,24 @@ namespace ProcurementHero.Field
 
         // ───────── 엔딩 ─────────
 
+        public const string EndingLine = "필요한 곳에, 필요한 물품을.";
+        const float EndingSceneSeconds = 2.4f;
+
+        Button endingSkip;
+        bool endingFinal;
+        int endingTotal;
+        bool endingNewBest;
+
+        /// <summary>엔딩 연출이 재생 중인지(최종 화면 전).</summary>
+        public bool EndingPlaying => State == FieldState.Ending && !endingFinal;
+        /// <summary>엔딩 연출이 지금 보여 주는 현장 번호(검증용, 장면 밖이면 -1).</summary>
+        public int EndingSceneIndex { get; private set; } = -1;
+
+        /// <summary>
+        /// 엔딩: 현장마다 최종 채택된 결과로 마을을 다시 보여 준 뒤(골목 → 보건소 → 대피소),
+        /// 담당자가 수첩에 마지막 체크를 하고 덮고, 마무리 문구와 별 기록 화면으로 끝난다. 약 11초, Space·Enter·버튼으로 건너뛰기.
+        /// 각 장면은 Progress에 저장된 그 현장의 판정 결과를 FieldWorld.ApplyInstant로 그대로 적용한다(별도 판정 없음).
+        /// </summary>
         public void ShowEnding()
         {
             if (!Progress.IsComplete)
@@ -312,14 +330,204 @@ namespace ProcurementHero.Field
                 return;
             }
             BeginScreen(FieldState.Ending);
-            world = FieldWorld.Build(worldRoot, Mission, false);
+            endingFinal = false;
+            EndingSceneIndex = -1;
+            // 기록은 엔딩에 들어올 때 한 번만 등록한다. 건너뛰기·최종 화면은 다시 등록하지 않는다.
+            endingTotal = Progress.TotalStars;
+            endingNewBest = FieldRecords.SubmitTotal(endingTotal);
+
+            endingSkip = UIKit.Button(hudRoot, "SkipEnding", "건너뛰기 (Space)", SkipEnding, ButtonStyle.Ghost, 24);
+            ((RectTransform)endingSkip.transform).Region(0.84f, 0.92f, 0.98f, 0.98f);
+            Deselectable(endingSkip);
+            StartCoroutine(EndingSequence(screenToken));
+        }
+
+        public void SkipEnding()
+        {
+            if (!EndingPlaying) return;
+            inputLockFrame = Time.frameCount;
+            ShowEndingFinal();
+        }
+
+        void BuildEndingWorld(int index, bool withPlayer)
+        {
+            if (world) Destroy(world.gameObject);
+            world = FieldWorld.Build(worldRoot, database.missions[index], withPlayer);
             world.Delta = () => FieldDelta;
-            world.ApplyInstant(LastConfirmed);
+            world.ApplyInstant(Progress.Get(index));
+        }
 
-            int total = Progress.TotalStars;
-            bool newBest = FieldRecords.SubmitTotal(total);
+        IEnumerator EndingSequence(int token)
+        {
+            int count = database.missions.Count;
+            // 장면 사이 암전. 화면 맨 아래 층(screenRoot)에 두어 건너뛰기 버튼·수첩을 가리지 않는다.
+            var curtain = UIKit.Panel(screenRoot, "Curtain", Theme.Navy, ShapeSprites.Square).rectTransform;
+            curtain.Fill();
+            var curtainImage = curtain.GetComponent<Image>();
+            curtainImage.raycastTarget = false;
+
+            IEnumerator FadeCurtain(float from, float to, float seconds)
+            {
+                float t = 0;
+                while (t < seconds)
+                {
+                    t += Time.unscaledDeltaTime;
+                    if (curtainImage) curtainImage.color = Theme.WithAlpha(Theme.Navy, Mathf.Lerp(from, to, Mathf.Clamp01(t / seconds)));
+                    yield return null;
+                }
+            }
+
+            // ①②③ 현장별 최종 결과
+            for (int i = 0; i < count; i++)
+            {
+                EndingSceneIndex = i;
+                BuildEndingWorld(i, false);
+                var caption = BuildEndingCaption(i);
+                sound.Play(Sfx.Arrive);
+                yield return FadeCurtain(1f, 0f, 0.3f);
+                if (token != screenToken) yield break;
+                yield return Wait(EndingSceneSeconds - 0.6f);
+                if (token != screenToken) yield break;
+                yield return FadeCurtain(0f, 1f, 0.3f);
+                if (token != screenToken) yield break;
+                if (caption) Destroy(caption.gameObject);
+            }
+
+            // ④ 담당자가 수첩에 마지막 체크를 하고 덮는다(마지막 현장 앞에서).
+            EndingSceneIndex = -1;
+            BuildEndingWorld(count - 1, true);
+            world.PlacePlayer(new Vector2(0.6f, -5.4f), Vector2.right);
+            yield return FadeCurtain(1f, 0.35f, 0.3f);
+            if (token != screenToken) yield break;
+            yield return Pose(0f, 1f, 0.15f);
+            var book = FieldBook.Build(toastRoot, new Vector2(0.24f, 0.3f), new Vector2(0.76f, 0.92f), false);
+            book.group.alpha = 0f;
+            var lastTick = BuildEndingBook(book);
+            yield return FieldBook.Open(book, HandOnCanvas(), () => sound.Play(Sfx.NotebookOpen));
+            if (token != screenToken) yield break;
+            yield return Wait(0.25f);
+            sound.Play(Sfx.Check);
+            yield return DrawEndingTick(lastTick);
+            if (token != screenToken) yield break;
+            yield return Wait(0.45f);
+            if (token != screenToken) yield break;
+            yield return FieldBook.Close(book, HandOnCanvas());
+            if (token != screenToken) yield break;
+            if (book.book) Destroy(book.book.gameObject);
+            yield return Pose(1f, 0f, 0.15f);
+
+            // ⑤ 마무리 문구
+            var line = UIKit.Text(toastRoot, "EndingLine", EndingLine, 64, Theme.Cream, TextAlignmentOptions.Center, true);
+            line.rectTransform.Region(0.1f, 0.42f, 0.9f, 0.58f);
+            var lineGroup = line.gameObject.AddComponent<CanvasGroup>();
+            lineGroup.blocksRaycasts = false;
+            float lt = 0;
+            while (lt < 1.5f && token == screenToken)
+            {
+                lt += Time.unscaledDeltaTime;
+                if (curtainImage) curtainImage.color = Theme.WithAlpha(Theme.Navy, Mathf.Lerp(0.35f, 0.7f, Mathf.Clamp01(lt / 0.3f)));
+                lineGroup.alpha = Mathf.Clamp01(lt / 0.3f);
+                yield return null;
+            }
+            if (token != screenToken) yield break;
             sound.Play(Sfx.Success);
+            ShowEndingFinal();
+        }
 
+        /// <summary>현장 장면 위 설명: 현장 이름 · 별 · 문제별 해결/미해결 · 해결된 곳 주민 한마디.</summary>
+        RectTransform BuildEndingCaption(int index)
+        {
+            var m = database.missions[index];
+            var r = Progress.Get(index);
+            // 아래쪽 길 위에 낮게 둔다(건물·주민·설치물을 가리지 않게).
+            var card = UIKit.Panel(screenRoot, "EndingCaption", Theme.WithAlpha(Theme.Cream, 0.95f)).rectTransform;
+            card.Region(0.08f, 0.02f, 0.78f, 0.17f);
+            UIKit.Text(card, "Name", $"현장 {index + 1} · {m.title}", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true).rectTransform.Region(0.02f, 0.52f, 0.4f, 0.98f);
+            UIKit.Text(card, "Stars", new string('★', r.Stars) + new string('☆', 3 - r.Stars), 36, Theme.Warning, TextAlignmentOptions.MidlineRight, true).rectTransform.Region(0.84f, 0.52f, 0.98f, 0.98f);
+
+            // 실제로 해결된 곳 중 마지막 문제(추가 목표가 해결됐으면 그것)의 주민 한마디. 해결한 물품·자리에 맞춘 대사다.
+            var voice = m.problems.LastOrDefault(p => r.IsSolved(p.id));
+            if (voice != null)
+                UIKit.Text(card, "Voice", $"“{world.SolvedLine(voice)}”", 22, Theme.NavySoft, TextAlignmentOptions.Center).rectTransform.Region(0.4f, 0.52f, 0.84f, 0.98f);
+
+            int n = m.problems.Count;
+            float width = 0.96f / n;
+            for (int i = 0; i < n; i++)
+            {
+                var p = m.problems[i];
+                bool solved = r.IsSolved(p.id);
+                var chip = UIKit.Panel(card, "Chip_" + p.id, solved ? Theme.WithAlpha(Theme.Success, 0.18f) : Theme.WithAlpha(Theme.NavySoft, 0.15f)).rectTransform;
+                chip.Region(0.02f + i * width + 0.005f, 0.08f, 0.02f + (i + 1) * width - 0.005f, 0.48f);
+                FieldArt.ProblemIcon(chip, p.kind, 34).Place(new Vector2(0, 0.5f), new Vector2(24, 0), new Vector2(34, 34));
+                string label = (p.required ? "" : "추가 ") + p.displayName + (solved ? " · 해결" : " · 아직 불편");
+                UIKit.Text(chip, "Label", label, 22, solved ? Theme.TealDark : Theme.NavySoft, TextAlignmentOptions.MidlineLeft, true).rectTransform.Fill(48, 6, 0, 0);
+            }
+            return card;
+        }
+
+        /// <summary>엔딩 수첩: 세 현장 목록. 앞의 현장은 이미 체크, 마지막 현장의 체크는 연출로 그린다.</summary>
+        RectTransform BuildEndingBook(FieldBook.Parts book)
+        {
+            UIKit.Text(book.left, "Head", "현장 수첩", 40, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0.06f, 0.82f, 0.94f, 0.95f);
+            RectTransform last = null;
+            int count = database.missions.Count;
+            for (int i = 0; i < count; i++)
+            {
+                var m = database.missions[i];
+                var r = Progress.Get(i);
+                float top = 0.76f - i * 0.22f;
+                var rowRect = UIKit.Rect(book.left, "Row" + i).Region(0.06f, top - 0.18f, 0.94f, top);
+                var box = UIKit.Panel(rowRect, "Box", Theme.WithAlpha(Theme.NavySoft, 0.12f)).rectTransform;
+                box.Place(new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(64, 64));
+                var tick = FieldArt.Tick(box, 58, Theme.TealDark);
+                tick.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(58, 58));
+                if (i == count - 1)
+                {
+                    last = tick;
+                    tick.localScale = Vector3.zero;
+                }
+                UIKit.Text(rowRect, "Name", $"{m.title}\n<size=22>{new string('★', r.Stars)}{new string('☆', 3 - r.Stars)}  해결 {m.problems.Count(p => r.IsSolved(p.id))}/{m.problems.Count}</size>",
+                    28, Theme.Navy, TextAlignmentOptions.MidlineLeft).rectTransform.Fill(90, 0, 0, 0);
+            }
+            UIKit.Text(book.right, "Total", $"별 ★ {endingTotal} / {Progress.MaxStars}", 40, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0.06f, 0.55f, 0.94f, 0.7f);
+            UIKit.Text(book.right, "Line", "새봄마을 현장 기록 끝", 28, Theme.NavySoft, TextAlignmentOptions.Center).rectTransform.Region(0.06f, 0.4f, 0.94f, 0.52f);
+            return last;
+        }
+
+        static IEnumerator DrawEndingTick(RectTransform tick)
+        {
+            if (!tick) yield break;
+            tick.localScale = Vector3.one;
+            var shortStroke = tick.Find("Short");
+            var longStroke = tick.Find("Long");
+            float t = 0;
+            while (t < 0.3f && tick)
+            {
+                t += Time.unscaledDeltaTime;
+                float a = Mathf.Clamp01(t / 0.12f), b = Mathf.Clamp01((t - 0.1f) / 0.2f);
+                if (shortStroke) shortStroke.localScale = new Vector3(1, a, 1);
+                if (longStroke) longStroke.localScale = new Vector3(1, b, 1);
+                yield return null;
+            }
+        }
+
+        /// <summary>최종 별·기록 화면. 연출을 끝까지 봐도, 건너뛰어도 같은 화면이다.</summary>
+        void ShowEndingFinal()
+        {
+            if (State != FieldState.Ending || endingFinal) return;
+            endingFinal = true;
+            EndingSceneIndex = -1;
+            // 진행 중인 엔딩 연출(코루틴·임시 UI·수첩)을 모두 멈추고 지운다.
+            StopAllCoroutines();
+            screenToken++;
+            UIKit.Clear(screenRoot);
+            UIKit.Clear(toastRoot);
+            UIKit.Clear(overlayRoot);
+            if (endingSkip) Destroy(endingSkip.gameObject);
+            endingSkip = null;
+            BuildEndingWorld(database.missions.Count - 1, false);
+
+            int total = endingTotal;
             var root = UIKit.Rect(screenRoot, "Ending").Fill();
             UIKit.Panel(root, "Shade", Theme.WithAlpha(Theme.Navy, 0.45f), ShapeSprites.Square).rectTransform.Fill();
             var page = UIKit.Panel(root, "Page", Theme.Hex(0xFFF9EC)).rectTransform;
@@ -329,7 +537,7 @@ namespace ProcurementHero.Field
                 : total >= Progress.MissionCount * 2 + 1 ? "꼼꼼한 현장 해결사"
                 : "성장하는 현장 지원 담당자";
             UIKit.Text(page, "Title", title, 54, Theme.TealDark, TextAlignmentOptions.Center, true).rectTransform.Region(0.05f, 0.8f, 0.95f, 0.95f);
-            UIKit.Text(page, "Line", "현장을 직접 살피고 필요한 곳에 필요한 물품을 놓았더니, 새봄마을의 하루가 달라졌어요.", 26, Theme.Navy, TextAlignmentOptions.Center)
+            UIKit.Text(page, "Line", EndingLine, 30, Theme.Navy, TextAlignmentOptions.Center, true)
                 .rectTransform.Region(0.05f, 0.72f, 0.95f, 0.8f);
 
             for (int i = 0; i < database.missions.Count; i++)
@@ -338,19 +546,23 @@ namespace ProcurementHero.Field
                 var r = Progress.Get(i);
                 var card = UIKit.Panel(page, "Mission" + i, Theme.Paper).rectTransform;
                 card.Region(0.04f + i * 0.31f, 0.27f, 0.04f + i * 0.31f + 0.29f, 0.69f);
-                UIKit.Text(card, "Name", $"현장 {i + 1}\n<b>{m.title}</b>", 26, Theme.Navy, TextAlignmentOptions.Center).rectTransform.Region(0.05f, 0.7f, 0.95f, 0.97f);
-                UIKit.Text(card, "Stars", new string('★', r.Stars) + new string('☆', 3 - r.Stars), 56, Theme.Warning, TextAlignmentOptions.Center, true).rectTransform.Region(0.05f, 0.45f, 0.95f, 0.7f);
-                var icons = UIKit.Rect(card, "Items").Region(0.05f, 0.08f, 0.95f, 0.42f);
+                UIKit.Text(card, "Name", $"현장 {i + 1}\n<b>{m.title}</b>", 26, Theme.Navy, TextAlignmentOptions.Center).rectTransform.Region(0.05f, 0.72f, 0.95f, 0.97f);
+                UIKit.Text(card, "Stars", new string('★', r.Stars) + new string('☆', 3 - r.Stars), 52, Theme.Warning, TextAlignmentOptions.Center, true).rectTransform.Region(0.05f, 0.5f, 0.95f, 0.72f);
+                bool bonusLeft = m.problems.Any(p => !p.required && !r.IsSolved(p.id));
+                UIKit.Text(card, "Solved", $"해결 {m.problems.Count(p => r.IsSolved(p.id))}/{m.problems.Count}" + (bonusLeft ? " · 추가 목표 남음" : ""),
+                    22, bonusLeft ? Theme.NavySoft : Theme.TealDark, TextAlignmentOptions.Center).rectTransform.Region(0.05f, 0.4f, 0.95f, 0.5f);
+                var icons = UIKit.Rect(card, "Items").Region(0.05f, 0.06f, 0.95f, 0.38f);
                 UIKit.HorizontalList(icons, 6, null, TextAnchor.MiddleCenter, false);
-                foreach (var pair in r.Assignments)
+                foreach (var spot in m.spots)
                 {
+                    if (!r.Assignments.TryGetValue(spot.id, out var itemId)) continue;
                     var slot = UIKit.Rect(icons, "Slot");
                     UIKit.Layout(slot, 70, 70);
-                    FieldArt.ItemIcon(slot, m.Item(pair.Value).visual, 64).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64, 64));
+                    FieldArt.ItemIcon(slot, m.Item(itemId).visual, 64).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64, 64));
                 }
             }
 
-            string record = $"별 합계 ★ {total} / {Progress.MaxStars}" + (newBest ? "  · 새 기록!" : $"  · 최고 기록 ★ {FieldRecords.BestTotal}");
+            string record = $"별 합계 ★ {total} / {Progress.MaxStars}" + (endingNewBest ? "  · 새 기록!" : $"  · 최고 기록 ★ {FieldRecords.BestTotal}");
             UIKit.Text(page, "Total", record, 34, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0.05f, 0.16f, 0.95f, 0.25f);
 
             var bar = UIKit.Rect(page, "Buttons").Region(0.2f, 0.03f, 0.8f, 0.13f);
@@ -358,7 +570,9 @@ namespace ProcurementHero.Field
             var again = UIKit.Button(bar, "Again", "처음부터 다시", ConfirmNewGame);
             var toTitle = UIKit.Button(bar, "Title", "타이틀로", ShowTitle, ButtonStyle.Secondary);
             UIKit.ChainNavigation(new Selectable[] { again, toTitle }, false);
-            Select(again);
+            if (EventSystem.current) EventSystem.current.SetSelectedGameObject(null);
+            // 건너뛴 Enter가 같은 프레임에 '처음부터 다시'를 누르지 않게 다음 프레임에 선택한다.
+            SelectNextFrame(() => again);
         }
 
         // ───────── 모달 · 일시정지 ─────────

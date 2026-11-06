@@ -119,7 +119,7 @@ namespace ProcurementHero.Field
             {
                 if (paused || modalStack.Count > 0) return 0f;
                 return State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Review
-                       || State == FieldState.Title || State == FieldState.Arriving
+                       || State == FieldState.Title || State == FieldState.Arriving || State == FieldState.Ending
                     ? Time.deltaTime : 0f;
             }
         }
@@ -192,6 +192,9 @@ namespace ProcurementHero.Field
                     if (Pressed(kb, Key.E) || (EnterPressed(kb) && NothingSelected())) TryObserve();
                     else if (WorldClick()) TryObserveAtPointer();
                     break;
+                case FieldState.Ending:
+                    if (EndingPlaying && (Pressed(kb, Key.Space) || EnterPressed(kb))) SkipEnding();
+                    break;
             }
         }
 
@@ -228,10 +231,11 @@ namespace ProcurementHero.Field
         {
             if (!cam || !world) return;
             Vector2 p = cam.ScreenToWorldPoint(Mouse.current.position.ReadValue());
+            // 주민이 옮겨 갔다면 지금 서 있는 자리를 기준으로 판정한다.
             var clicked = world.Problems.FirstOrDefault(pr =>
-                Vector2.Distance(p, pr.observePoint) < 1.6f || Vector2.Distance(p, pr.residentPosition) < 1.0f);
+                Vector2.Distance(p, world.ObservePoint(pr)) < 1.6f || Vector2.Distance(p, world.ResidentPosition(pr.id)) < 1.0f);
             if (clicked == null) return;
-            if (Vector2.Distance(world.PlayerPosition, clicked.observePoint) > FieldWorld.ObserveRange)
+            if (Vector2.Distance(world.PlayerPosition, world.ObservePoint(clicked)) > FieldWorld.ObserveRange)
             {
                 Toast("더 가까이 가야 살펴볼 수 있어요");
                 return;
@@ -251,7 +255,7 @@ namespace ProcurementHero.Field
             {
                 bool solved = LastConfirmed != null && LastConfirmed.IsSolved(problem.id);
                 world.PlayObserve(problem);
-                ShowBubble(problem, solved ? problem.solvedLine : problem.line);
+                ShowBubble(problem, solved ? world.SolvedLine(problem) : problem.line);
                 sound.Play(Sfx.Observe);
                 if (!reviewChecked)
                 {
@@ -276,7 +280,7 @@ namespace ProcurementHero.Field
         {
             var p = Mission.Problem(problemId);
             if (State == FieldState.Arriving) SkipArrival();
-            world.Player.position = world.WorldPoint(p.observePoint + new Vector2(0, -0.8f));
+            world.Player.position = world.WorldPoint(world.ObservePoint(p) + new Vector2(0, -0.8f));
             world.Player.transform.position = world.Player.position;
             Observe(p);
         }
@@ -573,13 +577,14 @@ namespace ProcurementHero.Field
             if (!magnifier || !world) return;
             var target = canAct ? world.NearestInRange() : null;
             magnifier.gameObject.SetActive(target != null);
-            if (target != null) magnifier.anchoredPosition = ClampToCanvas(ToCanvas(target.observePoint + new Vector2(2.2f, 0.6f)), magnifier);
+            if (target != null) magnifier.anchoredPosition = ClampToCanvas(ToCanvas(world.ObservePoint(target) + new Vector2(2.2f, 0.6f)), magnifier);
         }
 
         void ShowBubble(FieldProblemEntry p, string line)
         {
-            var at = p.residentPosition + new Vector2(0, 1.7f);
-            SetBubble(line, () => at);
+            // 말풍선은 주민을 따라간다(해결 후 자리를 옮겨도 맞게).
+            var w = world;
+            SetBubble(line, () => (w ? w.ResidentPosition(p.id) : p.residentPosition) + new Vector2(0, 2.0f));
         }
 
         /// <summary>담당자 머리 위 말풍선(도착 대사).</summary>
@@ -635,7 +640,7 @@ namespace ProcurementHero.Field
                 yield break;
             }
             var icon = FieldArt.ProblemIcon(toastRoot, p.kind, 70);
-            Vector2 from = ToCanvas(p.observePoint);
+            Vector2 from = ToCanvas(world ? world.ResidentPosition(p.id) : p.observePoint);
             Vector2 to = ((RectTransform)notebookButton.transform).position;
             RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)canvas.transform, RectTransformUtility.WorldToScreenPoint(null, to), null, out to);
             float t = 0;
