@@ -469,7 +469,8 @@ namespace ProcurementHero.Field
         /// <summary>가장 가까운, 관찰 범위 안의 문제 하나. 범위 밖이거나 담당자가 아직 내리지 않았으면 null.</summary>
         public FieldProblemEntry NearestInRange()
         {
-            if (!Player || !player.root.gameObject.activeSelf) return null;
+            // player(그림 묶음)는 에디터 플레이 중 스크립트 재컴파일 뒤 비어 있을 수 있다(Rigidbody만 복원됨).
+            if (!Player || player == null || !player.root.gameObject.activeSelf) return null;
             var pos = PlayerPosition;
             FieldProblemEntry best = null;
             float bestDistance = ObserveRange;
