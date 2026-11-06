@@ -53,6 +53,15 @@ namespace ProcurementHero.EditorTools
                 Unique(tag + " 지점", m.spots.Select(s => s.id), report);
                 foreach (var o in m.obstacles.Where(o => !string.IsNullOrEmpty(o.clearedBy)))
                     if (m.Problem(o.clearedBy) == null) report.Errors.Add($"{tag} 장애물이 없는 문제 '{o.clearedBy}'로 사라지도록 되어 있습니다.");
+                foreach (var r in m.reactions)
+                {
+                    var spot = m.Spot(r.spotId);
+                    var option = spot?.options.FirstOrDefault(o => o.itemId == r.itemId);
+                    if (option == null || !option.solves.Contains(r.problemId))
+                        report.Errors.Add($"{tag} 주민 반응({r.spotId}/{r.itemId}/{r.problemId})이 실제로 그 문제를 해결하는 배치가 아닙니다.");
+                    else if (r.moveResident && !ResidentFits(m, r.residentPosition, r.spotId))
+                        report.Errors.Add($"{tag} 주민 반응({r.spotId}/{r.itemId}/{r.problemId})의 이동 위치가 건물·벽·물품과 겹칩니다.");
+                }
                 foreach (var i in m.items)
                     if (i.cost <= 0) report.Errors.Add($"{tag} 물품 '{i.displayName}' 비용이 0 이하입니다.");
                 foreach (var s in m.spots)
@@ -87,6 +96,22 @@ namespace ProcurementHero.EditorTools
             var list = ids.ToList();
             foreach (var dup in list.GroupBy(x => x).Where(g => g.Count() > 1 || string.IsNullOrEmpty(g.Key)))
                 report.Errors.Add($"{label} ID 문제: '{dup.Key}'");
+        }
+
+        /// <summary>옮겨 간 주민(발 반지름 0.3)이 건물·벽·나무·울타리나 다른 설치 자리의 물품과 겹치지 않는지. 해결한 물품의 자리(ownSpotId)는 제외한다(그늘막 아래처럼 함께 있어야 하므로).</summary>
+        public static bool ResidentFits(FieldMissionData m, Vector2 p, string ownSpotId = null)
+        {
+            var foot = p + new Vector2(0, -0.45f);
+            if (Mathf.Abs(foot.x) > FieldWorld.HalfWidth - 0.3f || Mathf.Abs(foot.y) > FieldWorld.HalfHeight - 0.3f) return false;
+            foreach (var o in m.obstacles)
+            {
+                if (o.kind == FieldObstacleKind.Puddle) continue;
+                var half = o.size / 2 + new Vector2(0.3f, 0.3f);
+                if (Mathf.Abs(foot.x - o.center.x) < half.x && Mathf.Abs(foot.y - o.center.y) < half.y) return false;
+            }
+            foreach (var s in m.spots)
+                if (s.id != ownSpotId && Mathf.Abs(foot.x - s.position.x) < 0.6f && Mathf.Abs(foot.y - s.position.y) < 0.3f) return false;
+            return true;
         }
 
         const float Cell = 0.25f;

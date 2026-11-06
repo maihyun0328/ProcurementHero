@@ -70,12 +70,15 @@ namespace ProcurementHero.Tests
         public void Mission2SamePlaceItemHasDifferentEffectByPosition()
         {
             var m = M("f2");
-            // 냉방장치: 대기실 안쪽은 대기실만, 현관 안쪽은 열린 문으로 바깥 줄까지.
-            CollectionAssert.AreEquivalent(new[] { "H" }, Eval(m, ("waiting", "aircon")).Solved);
-            CollectionAssert.AreEquivalent(new[] { "H", "O" }, Eval(m, ("hall", "aircon")).Solved);
-            // 실외(앞마당)에는 냉방장치를 놓을 수 없고 그늘막만 된다. 복도 쉼터 냉방은 대기실까지 가지 않으므로 허용하지 않는다.
+            // 대형 냉방기: 대기실 안쪽은 대기실만, 현관 안쪽은 열린 문으로 바깥 줄까지.
+            CollectionAssert.AreEquivalent(new[] { "H" }, Eval(m, ("waiting", "bigcool")).Solved);
+            CollectionAssert.AreEquivalent(new[] { "H", "O" }, Eval(m, ("hall", "bigcool")).Solved);
+            // 보통 냉방장치는 어디에 두어도 실내 한 곳(대기실)만.
+            CollectionAssert.AreEquivalent(new[] { "H" }, Eval(m, ("hall", "aircon")).Solved);
+            // 실외(대기 줄 옆)에는 냉방장치를 놓을 수 없고 그늘막만 된다. 복도 쉼터는 급수만.
             var spec = m.ToSpec();
             Assert.AreEqual(AssignOutcome.NotAllowed, new FieldPlan().Toggle(spec, "yard", "aircon"));
+            Assert.AreEqual(AssignOutcome.NotAllowed, new FieldPlan().Toggle(spec, "yard", "bigcool"));
             Assert.AreEqual(AssignOutcome.NotAllowed, new FieldPlan().Toggle(spec, "corridor", "aircon"));
             CollectionAssert.AreEquivalent(new[] { "O" }, Eval(m, ("yard", "shade")).Solved);
         }
@@ -87,13 +90,13 @@ namespace ProcurementHero.Tests
             var twoStar = Eval(m, ("waiting", "aircon"), ("corridor", "water"));
             Assert.AreEqual(65, twoStar.Cost);
             Assert.AreEqual(2, twoStar.Stars);
-            var threeA = Eval(m, ("hall", "aircon"), ("corridor", "water"));
-            Assert.AreEqual(3, threeA.Stars);
-            Assert.AreEqual(65, threeA.Cost);
-            var threeB = Eval(m, ("waiting", "aircon"), ("hall", "water"), ("yard", "shade"));
-            Assert.AreEqual(3, threeB.Stars);
-            Assert.AreEqual(85, threeB.Cost);
-            Assert.IsTrue(threeB.WithinBudget);
+            var shadeWay = Eval(m, ("waiting", "aircon"), ("corridor", "water"), ("yard", "shade"));
+            Assert.AreEqual(85, shadeWay.Cost);
+            Assert.AreEqual(3, shadeWay.Stars);
+            var coolerWay = Eval(m, ("hall", "bigcool"), ("corridor", "water"));
+            Assert.AreEqual(85, coolerWay.Cost);
+            Assert.AreEqual(3, coolerWay.Stars);
+            Assert.IsFalse(Eval(m, ("hall", "bigcool"), ("corridor", "water"), ("yard", "shade")).WithinBudget, "두 방법을 겹치면 예산 초과");
         }
 
         [Test]
@@ -103,14 +106,34 @@ namespace ProcurementHero.Tests
             // 정문 앞: 싼 이동형 발전기(P)와 배수펌프(R)가 같은 자리를 두고 겨룬다.
             CollectionAssert.AreEquivalent(new[] { "P" }, Eval(m, ("door", "portable")).Solved);
             CollectionAssert.AreEquivalent(new[] { "R" }, Eval(m, ("door", "pump")).Solved);
-            var cheap = Eval(m, ("door", "portable"), ("gate", "pump"), ("detour", "sandbags"));
-            Assert.AreEqual(70, cheap.Cost);
-            Assert.AreEqual(3, cheap.Stars);
-            var fixedPower = Eval(m, ("panel", "generator"), ("door", "pump"), ("detour", "sandbags"));
-            Assert.AreEqual(85, fixedPower.Cost);
-            Assert.AreEqual(3, fixedPower.Stars);
+            // 발전기를 정문에 두면 물은 진입로 끝에서 대형 배수펌프로 빼야 해서 아낀 비용이 돌아간다.
+            var portableWay = Eval(m, ("door", "portable"), ("gate", "bigpump"), ("detour", "sandbags"));
+            Assert.AreEqual(85, portableWay.Cost);
+            Assert.AreEqual(3, portableWay.Stars);
+            var panelWay = Eval(m, ("panel", "generator"), ("door", "pump"), ("detour", "sandbags"));
+            Assert.AreEqual(85, panelWay.Cost);
+            Assert.AreEqual(3, panelWay.Stars);
             Assert.AreEqual(2, Eval(m, ("panel", "generator"), ("door", "pump")).Stars);
-            Assert.IsFalse(Eval(m, ("panel", "generator"), ("gate", "pump"), ("detour", "pump")).WithinBudget, "펌프 두 대 + 비상전원은 예산 초과");
+            Assert.AreEqual(70, Eval(m, ("door", "portable"), ("gate", "bigpump")).Cost);
+            Assert.IsFalse(Eval(m, ("panel", "generator"), ("gate", "bigpump"), ("detour", "sandbags")).WithinBudget, "비상전원 + 대형 펌프 + 모래주머니는 예산 초과");
+        }
+
+        [Test]
+        public void Missions2And3ThreeStarPlansAreRealAlternatives()
+        {
+            foreach (var id in new[] { "f2", "f3" })
+            {
+                var m = M(id);
+                var spec = m.ToSpec();
+                var all = FieldRules.AllPlans(spec).Select(p => FieldRules.Evaluate(spec, p)).Where(e => e.WithinBudget).ToList();
+                var three = all.Where(e => e.Stars == 3).ToList();
+                // 더 싼 별 3개 계획이 같은 효과로 비싼 계획을 의미 없게 만들지 않는다: 별 3개 계획은 비용이 모두 같다.
+                Assert.AreEqual(1, three.Select(e => e.Cost).Distinct().Count(), m.title + ": 별 3개 계획 비용 " + string.Join(",", three.Select(e => e.Cost)));
+                // 서로 다른 자리 조합이어야 고민할 거리가 된다.
+                Assert.GreaterOrEqual(three.Select(e => string.Join(",", e.Assignments.Keys.OrderBy(k => k))).Distinct().Count(), 2, m.title);
+                // 별 2개 계획은 별 3개보다 싸게 가능하다(추가 목표를 포기하면 예산이 남는다).
+                Assert.Less(all.Where(e => e.Stars == 2).Min(e => e.Cost), three[0].Cost, m.title);
+            }
         }
 
         [Test]
@@ -159,6 +182,13 @@ namespace ProcurementHero.Tests
                     seed.Data.spots.SelectMany(s => s.options.Select(o => s.id + ":" + o.itemId + ">" + string.Join("+", o.solves))),
                     asset.spots.SelectMany(s => s.options.Select(o => s.id + ":" + o.itemId + ">" + string.Join("+", o.solves))), asset.name);
                 CollectionAssert.AreEqual(seed.Data.obstacles.Select(o => o.clearedBy ?? ""), asset.obstacles.Select(o => o.clearedBy ?? ""), asset.name);
+                Assert.AreEqual(seed.Data.title, asset.title, asset.name);
+                Assert.AreEqual(seed.Data.arrivalLine, asset.arrivalLine, asset.name);
+                CollectionAssert.AreEqual(seed.Data.problems.Select(p => p.line + "|" + p.solvedLine + "|" + p.residentPosition),
+                    asset.problems.Select(p => p.line + "|" + p.solvedLine + "|" + p.residentPosition), asset.name);
+                CollectionAssert.AreEqual(seed.Data.spots.Select(sp => sp.id + "@" + sp.position), asset.spots.Select(sp => sp.id + "@" + sp.position), asset.name);
+                CollectionAssert.AreEqual(seed.Data.reactions.Select(r => $"{r.spotId}/{r.itemId}/{r.problemId}/{r.line}/{r.moveResident}/{r.residentPosition}"),
+                    asset.reactions.Select(r => $"{r.spotId}/{r.itemId}/{r.problemId}/{r.line}/{r.moveResident}/{r.residentPosition}"), asset.name);
                 Object.DestroyImmediate(seed.Data);
             }
         }
@@ -184,6 +214,127 @@ namespace ProcurementHero.Tests
             {
                 Object.DestroyImmediate(world.gameObject);
             }
+        }
+
+        static T WithWorld<T>(FieldMissionData m, System.Func<FieldWorld, T> body)
+        {
+            var world = FieldWorld.Build(null, m, true);
+            try { return body(world); }
+            finally { Object.DestroyImmediate(world.gameObject); }
+        }
+
+        [Test]
+        public void ShadeMovesQueueResidentUnderTheShade()
+        {
+            var m = M("f2");
+            var o = m.Problem("O");
+            var yard = m.Spot("yard");
+            WithWorld(m, world =>
+            {
+                Assert.AreEqual(o.residentPosition, world.ResidentAnchor("O"), "설치 전에는 원래 대기 위치");
+                world.ApplyInstant(Eval(m, ("waiting", "aircon"), ("corridor", "water"), ("yard", "shade")));
+                var at = world.ResidentAnchor("O");
+                Assert.AreEqual(at, world.ResidentPosition("O"), "건너뛰기·즉시 적용도 같은 자리에 정착");
+                // 그늘막 기둥(±1) 사이, 천막 바로 뒤(발이 그늘 위)
+                Assert.Less(Mathf.Abs(at.x - yard.position.x), 0.9f);
+                float foot = at.y - 0.45f;
+                Assert.That(foot - yard.position.y, Is.InRange(0.0f, 0.5f), "발이 그늘막 바닥 그늘 안");
+                Assert.AreEqual(FieldItemVisual.Shade, world.SolvedBy("O"));
+                StringAssert.Contains("햇볕을 피해서", world.SolvedLine(o));
+                // 관찰·말풍선 기준도 새 자리
+                Assert.Less(Vector2.Distance(world.ObservePoint(o), at), FieldWorld.ObserveRange);
+                Assert.Greater(Vector2.Distance(world.ObservePoint(o), o.observePoint), 1f);
+                world.ApplyInstant(null);
+                Assert.AreEqual(o.residentPosition, world.ResidentAnchor("O"), "재계획(설치 전)이면 원래 자리로");
+                Assert.AreEqual(o.observePoint, world.ObservePoint(o));
+                return 0;
+            });
+        }
+
+        [Test]
+        public void CoolerSolvedQueueHasNoShadeLineOrMove()
+        {
+            var m = M("f2");
+            var o = m.Problem("O");
+            WithWorld(m, world =>
+            {
+                world.ApplyInstant(Eval(m, ("hall", "bigcool"), ("corridor", "water")));
+                Assert.AreEqual(FieldItemVisual.FloorCooler, world.SolvedBy("O"));
+                var line = world.SolvedLine(o);
+                StringAssert.DoesNotContain("그늘", line);
+                StringAssert.DoesNotContain("햇볕", line);
+                CollectionAssert.DoesNotContain(world.InstalledSpots, "yard", "그늘막을 놓지 않았다");
+                var at = world.ResidentAnchor("O");
+                Assert.Greater(Vector2.Distance(at, m.Spot("yard").position), 1.5f, "없는 그늘 아래로 가지 않는다");
+                return 0;
+            });
+        }
+
+        [Test]
+        public void UnsolvedBonusResidentStaysAndKeepsComplaint()
+        {
+            var m = M("f2");
+            var o = m.Problem("O");
+            WithWorld(m, world =>
+            {
+                world.ApplyInstant(Eval(m, ("waiting", "aircon"), ("corridor", "water")));
+                Assert.AreEqual(o.residentPosition, world.ResidentAnchor("O"));
+                Assert.IsNull(world.SolvedBy("O"));
+                Assert.AreEqual(0f, world.SiteLevel("O"));
+                return 0;
+            });
+        }
+
+        [Test]
+        public void WaterResidentMovesToDispenserWithPlainWaterLine()
+        {
+            var m = M("f2");
+            var w = m.Problem("W");
+            WithWorld(m, world =>
+            {
+                world.ApplyInstant(Eval(m, ("waiting", "aircon"), ("corridor", "water")));
+                Assert.Less(Vector2.Distance(world.ResidentAnchor("W"), m.Spot("corridor").position), 1.2f);
+                StringAssert.DoesNotContain("시원한 물", world.SolvedLine(w));
+                return 0;
+            });
+        }
+
+        [Test]
+        public void SkipInstallLeavesNoTempObjectsAndMatchesInstantState()
+        {
+            var m = M("f3");
+            var plan = Eval(m, ("panel", "generator"), ("door", "pump"), ("detour", "sandbags"));
+            string Snapshot(FieldWorld w) =>
+                $"{w.InstalledCount}|{string.Join(",", w.InstalledSpots.OrderBy(x => x))}|R:{w.PuddleBlocking("R")}|B:{w.PuddleBlocking("B")}|" +
+                string.Join(",", m.problems.Select(p => p.id + "=" + w.SiteLevel(p.id) + "@" + w.ResidentAnchor(p.id)));
+            string skipped = WithWorld(m, world =>
+            {
+                int calls = 0;
+                world.PlayInstall(plan, null, () => calls++);
+                world.SkipInstall();
+                world.SkipInstall();
+                Assert.AreEqual(1, calls, "완료 콜백은 한 번만");
+                Assert.AreEqual(0, world.TempObjectCount);
+                return Snapshot(world);
+            });
+            string instant = WithWorld(m, world =>
+            {
+                world.ApplyInstant(plan);
+                return Snapshot(world);
+            });
+            Assert.AreEqual(instant, skipped);
+        }
+
+        [Test]
+        public void ReactionsOnlyDescribeRealSolutions()
+        {
+            foreach (var m in database.missions)
+                foreach (var r in m.reactions)
+                {
+                    var option = m.Spot(r.spotId).options.First(o => o.itemId == r.itemId);
+                    CollectionAssert.Contains(option.solves, r.problemId, m.title);
+                    if (r.moveResident) Assert.IsTrue(FieldValidator.ResidentFits(m, r.residentPosition, r.spotId), m.title + " " + r.spotId);
+                }
         }
 
         [Test]

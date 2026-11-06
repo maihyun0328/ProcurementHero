@@ -30,11 +30,11 @@ MonoBehaviour:
     required: 1
     mustObserve: 1
     observePoint: {x: -5, y: 3.2}
-    zoneCenter: {x: -5.6, y: 3.6}
-    zoneSize: {x: 8.2, y: 6.4}
+    zoneCenter: {x: -4.2, y: 3.6}
+    zoneSize: {x: 11.4, y: 6.4}
     residentPosition: {x: -6.4, y: 4.8}
     line: "\uB300\uAE30\uC2E4\uC774 \uB108\uBB34 \uB354\uC6CC\uC694"
-    solvedLine: "\uB300\uAE30\uC2E4\uC774 \uC2DC\uC6D0\uD574\uC694"
+    solvedLine: "\uC774\uC81C \uB300\uAE30\uC2E4\uC774 \uC2DC\uC6D0\uD574\uC84C\uC5B4\uC694"
     memo: "\uB300\uAE30\uC2E4\uC774 \uB354\uC6CC \uBD80\uCC44\uC9C8"
   - id: W
     displayName: "\uBCF5\uB3C4 \uC27C\uD130"
@@ -44,28 +44,35 @@ MonoBehaviour:
     observePoint: {x: 6, y: 4.2}
     zoneCenter: {x: 6, y: 4.4}
     zoneSize: {x: 7.4, y: 5}
-    residentPosition: {x: 7.2, y: 5.4}
-    line: "\uB9C8\uC2E4 \uBB3C\uC774 \uBD80\uC871\uD574\uC694"
-    solvedLine: "\uC2DC\uC6D0\uD55C \uBB3C\uC744 \uB9C8\uC154\uC694"
+    residentPosition: {x: 6.4, y: 5.2}
+    line: "\uBB3C\uD1B5\uC774 \uBE44\uC5B4\uC11C \uB9C8\uC2E4 \uBB3C\uC774 \uC5C6\uC5B4\uC694"
+    solvedLine: "\uC774\uC81C \uBAA9\uB9C8\uB97C \uB54C \uBB3C\uC744 \uB9C8\uC2E4
+      \uC218 \uC788\uACA0\uC5B4\uC694"
     memo: "\uBCF5\uB3C4 \uC27C\uD130 \uBB3C\uD1B5\uC774 \uBE54"
   - id: O
     displayName: "\uBC14\uAE65 \uC904"
     kind: 1
     required: 0
     mustObserve: 0
-    observePoint: {x: -4, y: -4}
-    zoneCenter: {x: -4.2, y: -4.2}
-    zoneSize: {x: 8, y: 4.4}
-    residentPosition: {x: -5.6, y: -4}
-    line: "\uBC16\uC5D0\uC11C \uAE30\uB2E4\uB9AC\uAE30 \uD798\uB4E4\uC5B4\uC694"
-    solvedLine: "\uADF8\uB298\uC5D0\uC11C \uD3B8\uD788 \uAE30\uB2E4\uB824\uC694"
+    observePoint: {x: -4.6, y: -4.6}
+    zoneCenter: {x: -4, y: -3.4}
+    zoneSize: {x: 6.4, y: 4.2}
+    residentPosition: {x: -5.4, y: -3.4}
+    line: "\uD587\uBCD5 \uC544\uB798\uC11C \uAE30\uB2E4\uB9AC\uAE30 \uD798\uB4E4\uC5B4\uC694"
+    solvedLine: "\uC774\uC81C \uBC16\uC5D0\uC11C \uAE30\uB2E4\uB9AC\uAE30 \uD55C\uACB0
+      \uB098\uC544\uC694"
     memo: "\uD604\uAD00 \uBC16 \uC904 \xB7 \uB664\uC57D\uBCD5"
   items:
   - id: aircon
     displayName: "\uB0C9\uBC29\uC7A5\uCE58"
     cost: 40
     visual: 2
-    hint: "\uC2E4\uB0B4 \uB0C9\uBC29 \xB7 \uC2E4\uC678 \uBD88\uAC00"
+    hint: "\uC2E4\uB0B4 \uD55C \uACF3 \uB0C9\uBC29"
+  - id: bigcool
+    displayName: "\uB300\uD615 \uB0C9\uBC29\uAE30"
+    cost: 60
+    visual: 9
+    hint: "\uB113\uC740 \uB0C9\uBC29 \xB7 \uD604\uAD00\uC774\uBA74 \uBC14\uAE65\uAE4C\uC9C0"
   - id: water
     displayName: "\uAE09\uC218\uC7A5\uCE58"
     cost: 25
@@ -84,6 +91,9 @@ MonoBehaviour:
     - itemId: aircon
       solves:
       - H
+    - itemId: bigcool
+      solves:
+      - H
   - id: hall
     displayName: "\uD604\uAD00 \uC548\uCABD"
     position: {x: 0, y: 1.4}
@@ -91,20 +101,20 @@ MonoBehaviour:
     - itemId: aircon
       solves:
       - H
-      - O
-    - itemId: water
+    - itemId: bigcool
       solves:
-      - W
+      - H
+      - O
   - id: corridor
     displayName: "\uBCF5\uB3C4 \uC27C\uD130"
-    position: {x: 8.4, y: 1.6}
+    position: {x: 8.6, y: 4}
     options:
     - itemId: water
       solves:
       - W
   - id: yard
-    displayName: "\uD604\uAD00 \uC55E\uB9C8\uB2F9"
-    position: {x: 2.6, y: -3}
+    displayName: "\uB300\uAE30 \uC904 \uC606"
+    position: {x: -3, y: -3.6}
     options:
     - itemId: shade
       solves:
@@ -153,3 +163,24 @@ MonoBehaviour:
     size: {x: 32, y: 2.2}
   - center: {x: 0, y: 3.5}
     size: {x: 19.4, y: 7}
+  reactions:
+  - spotId: yard
+    itemId: shade
+    problemId: O
+    line: "\uC774\uC81C \uD587\uBCD5\uC744 \uD53C\uD574\uC11C \uAE30\uB2E4\uB9B4
+      \uC218 \uC788\uACA0\uC5B4\uC694."
+    moveResident: 1
+    residentPosition: {x: -2.7, y: -3.05}
+  - spotId: hall
+    itemId: bigcool
+    problemId: O
+    line: "\uD604\uAD00 \uBC14\uB78C \uB355\uBD84\uC5D0 \uB35C \uB354\uC6CC\uC694."
+    moveResident: 1
+    residentPosition: {x: -2.4, y: -1.2}
+  - spotId: corridor
+    itemId: water
+    problemId: W
+    line: "\uC774\uC81C \uBAA9\uB9C8\uB97C \uB54C \uBB3C\uC744 \uB9C8\uC2E4 \uC218
+      \uC788\uACA0\uC5B4\uC694."
+    moveResident: 1
+    residentPosition: {x: 7.7, y: 4.5}
