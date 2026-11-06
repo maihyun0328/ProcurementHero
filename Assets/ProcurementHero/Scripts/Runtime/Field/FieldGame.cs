@@ -15,6 +15,7 @@ namespace ProcurementHero.Field
     public enum FieldState
     {
         Title,
+        Arriving,
         Explore,
         Notebook,
         Installing,
@@ -59,6 +60,10 @@ namespace ProcurementHero.Field
         bool confirmLocked;
         bool reviewChecked;
         int stateVersion;
+        /// <summary>화면이 바뀔 때마다 늘어난다. 이전 화면의 연출 콜백이 늦게 와도 무시하기 위해 쓴다.</summary>
+        int screenToken;
+        bool notebookBusy;
+        readonly HashSet<int> arrivedMissions = new HashSet<int>();
         int inputLockFrame = -1;
         HashSet<string> highlightUnsolved = new HashSet<string>();
 
@@ -68,7 +73,7 @@ namespace ProcurementHero.Field
         Button notebookButton, resultButton, skipButton;
         Image notebookBadge;
         RectTransform reviewBanner;
-        string bubbleFor;
+        Func<Vector2> bubbleAnchor;
         float bubbleTimer;
 
         void Awake()
@@ -113,7 +118,8 @@ namespace ProcurementHero.Field
             get
             {
                 if (paused || modalStack.Count > 0) return 0f;
-                return State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Review || State == FieldState.Title
+                return State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Review
+                       || State == FieldState.Title || State == FieldState.Arriving
                     ? Time.deltaTime : 0f;
             }
         }
@@ -157,7 +163,7 @@ namespace ProcurementHero.Field
                 inputLockFrame = Time.frameCount;
                 if (modalStack.Count > 0) CloseTopModal();
                 else if (State == FieldState.Notebook) CloseNotebook();
-                else if (State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Review) OpenPause();
+                else if (State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Review || State == FieldState.Arriving) OpenPause();
                 return;
             }
 
@@ -168,6 +174,9 @@ namespace ProcurementHero.Field
 
             switch (State)
             {
+                case FieldState.Arriving:
+                    if (Pressed(kb, Key.Space) || EnterPressed(kb) || Pressed(kb, Key.E) || WorldClick()) SkipArrival();
+                    break;
                 case FieldState.Explore:
                     if (Pressed(kb, Key.Tab)) OpenNotebook();
                     else if (Pressed(kb, Key.E) || (EnterPressed(kb) && NothingSelected())) TryObserve();
@@ -241,6 +250,7 @@ namespace ProcurementHero.Field
             if (State == FieldState.Review)
             {
                 bool solved = LastConfirmed != null && LastConfirmed.IsSolved(problem.id);
+                world.PlayObserve(problem);
                 ShowBubble(problem, solved ? problem.solvedLine : problem.line);
                 sound.Play(Sfx.Observe);
                 if (!reviewChecked)
@@ -253,19 +263,19 @@ namespace ProcurementHero.Field
             if (State != FieldState.Explore) return;
 
             ShowBubble(problem, problem.line);
-            if (!observed.Add(problem.id)) return; // 다시 봐도 기록은 늘지 않는다.
+            if (!observed.Add(problem.id)) return; // 다시 봐도 기록이나 기록 연출은 반복하지 않는다.
+            // 담당자가 몸을 숙여 살피고 → 주민이 반응하고 → 기록 그림이 수첩으로 날아가 → 관찰 수가 오른다.
+            world.PlayObserve(problem);
             world.MarkObserved(problem.id, true);
             sound.Play(Sfx.Observe);
-            Toast($"수첩에 '{problem.displayName}'을(를) 기록했어요");
             StartCoroutine(FlyToNotebook(problem));
-            if (notebookBadge) notebookBadge.gameObject.SetActive(true);
-            RefreshHud();
         }
 
         /// <summary>테스트와 자동 확인용: 플레이어를 문제 앞으로 옮긴 뒤 관찰한다.</summary>
         public void ObserveForTest(string problemId)
         {
             var p = Mission.Problem(problemId);
+            if (State == FieldState.Arriving) SkipArrival();
             world.Player.position = world.WorldPoint(p.observePoint + new Vector2(0, -0.8f));
             world.Player.transform.position = world.Player.position;
             Observe(p);
@@ -282,6 +292,8 @@ namespace ProcurementHero.Field
             UIKit.Clear(hudRoot);
             UIKit.Clear(toastRoot);
             UIKit.Clear(overlayRoot);
+            screenToken++;
+            notebookBusy = false;
             magnifier = bubble = goalRow = reviewBanner = null;
             notebookButton = resultButton = skipButton = null;
             notebookRoot = null;
@@ -323,8 +335,45 @@ namespace ProcurementHero.Field
             world.Delta = () => FieldDelta;
             foreach (var id in observed) world.MarkObserved(id, true);
             BuildHud();
-            if (replan) OpenNotebook();
-            else StartCoroutine(Intro());
+            if (replan)
+            {
+                // 재계획은 도착 연출 없이 바로 수첩을 연다.
+                OpenNotebook();
+                return;
+            }
+            // 처음 오는 현장은 차량 도착부터, 다시 온 현장은 짧게.
+            bool fast = arrivedMissions.Contains(index) || index > 0;
+            arrivedMissions.Add(index);
+            SetState(FieldState.Arriving);
+            int token = screenToken;
+            StartCoroutine(Intro());
+            BuildArrivalSkip();
+            world.PlayArrival(fast, s => sound.Play(s),
+                () => { if (token == screenToken) ShowPlayerBubble(string.IsNullOrEmpty(Mission.arrivalLine) ? "어디가 불편한지 살펴볼까?" : Mission.arrivalLine); },
+                () => { if (token == screenToken) OnArrived(); });
+        }
+
+        Button arrivalSkip;
+
+        void BuildArrivalSkip()
+        {
+            arrivalSkip = UIKit.Button(hudRoot, "SkipArrival", "건너뛰기 (Space)", SkipArrival, ButtonStyle.Ghost, 24);
+            ((RectTransform)arrivalSkip.transform).Region(0.42f, 0.82f, 0.58f, 0.89f);
+            Deselectable(arrivalSkip);
+        }
+
+        public void SkipArrival()
+        {
+            if (State == FieldState.Arriving && world) world.SkipArrival();
+        }
+
+        void OnArrived()
+        {
+            if (State != FieldState.Arriving) return;
+            if (arrivalSkip) Destroy(arrivalSkip.gameObject);
+            arrivalSkip = null;
+            SetState(FieldState.Explore);
+            RefreshHud();
         }
 
         IEnumerator Intro()
@@ -347,24 +396,40 @@ namespace ProcurementHero.Field
             if (banner) Destroy(banner.gameObject);
         }
 
-        /// <summary>확정: 배정 목록을 결과 스냅샷으로 고정하고 설치를 시작한다. 연타는 무시한다.</summary>
+        /// <summary>
+        /// 확정: 배정 목록을 결과 스냅샷으로 즉시 고정한다(이후 연타·수첩 조작은 무시).
+        /// 그다음 도장 → 책 닫기 → 배송·설치 순서로 연출한다.
+        /// </summary>
         public bool ConfirmPlan()
         {
-            if (confirmLocked || State != FieldState.Notebook) return false;
+            if (confirmLocked || State != FieldState.Notebook || notebookBusy) return false;
             if (FieldRules.CanConfirm(Spec, Plan, observed) != ConfirmBlock.None) return false;
             confirmLocked = true;
+            notebookBusy = true;
             var snapshot = FieldRules.Evaluate(Spec, Plan);
             LastConfirmed = snapshot;
             Progress.Set(MissionIndex, snapshot);
             observedByMission[MissionIndex] = new HashSet<string>(observed);
-            sound.Play(Sfx.Confirm);
             if (toastRoutine != null) StopCoroutine(toastRoutine);
             UIKit.Clear(toastRoot);
+            StartCoroutine(ConfirmSequence(snapshot, screenToken));
+            return true;
+        }
+
+        IEnumerator ConfirmSequence(FieldEvaluation snapshot, int token)
+        {
+            sound.Play(Sfx.Stamp);
+            yield return StampConfirm();
+            yield return CloseBookAnimation();
+            if (token != screenToken) yield break;
             HideNotebook();
+            notebookBusy = false;
+            yield return LowerNotebookPose();
+            if (token != screenToken) yield break;
             SetState(FieldState.Installing);
             BuildInstallHud();
-            world.PlayInstall(snapshot, s => sound.Play(s), OnInstalled);
-            return true;
+            sound.Play(Sfx.Confirm);
+            world.PlayInstall(snapshot, s => sound.Play(s), () => { if (token == screenToken) OnInstalled(); });
         }
 
         public void SkipInstall()
@@ -508,29 +573,51 @@ namespace ProcurementHero.Field
             if (!magnifier || !world) return;
             var target = canAct ? world.NearestInRange() : null;
             magnifier.gameObject.SetActive(target != null);
-            if (target != null) magnifier.anchoredPosition = ToCanvas(target.observePoint + new Vector2(2.2f, 0.6f));
+            if (target != null) magnifier.anchoredPosition = ClampToCanvas(ToCanvas(target.observePoint + new Vector2(2.2f, 0.6f)), magnifier);
         }
 
         void ShowBubble(FieldProblemEntry p, string line)
         {
+            var at = p.residentPosition + new Vector2(0, 1.7f);
+            SetBubble(line, () => at);
+        }
+
+        /// <summary>담당자 머리 위 말풍선(도착 대사).</summary>
+        void ShowPlayerBubble(string line) => SetBubble(line, () => world ? world.PlayerHeadPoint : Vector2.zero);
+
+        void SetBubble(string line, Func<Vector2> anchor)
+        {
             if (!bubble) return;
-            bubbleFor = p.id;
-            bubbleTimer = 3.5f;
+            bubbleAnchor = anchor;
+            bubbleTimer = 3.2f;
             bubbleText.text = line;
             bubble.gameObject.SetActive(true);
+            bubble.localScale = Vector3.one * 0.6f;
         }
 
         void UpdateBubble()
         {
             if (!bubble || !bubble.gameObject.activeSelf || world == null) return;
             bubbleTimer -= Time.unscaledDeltaTime;
-            var p = Mission.Problem(bubbleFor);
-            if (bubbleTimer <= 0 || p == null || (State != FieldState.Explore && State != FieldState.Review))
+            if (bubbleTimer <= 0 || bubbleAnchor == null || (State != FieldState.Explore && State != FieldState.Review && State != FieldState.Arriving))
             {
                 bubble.gameObject.SetActive(false);
                 return;
             }
-            bubble.anchoredPosition = ToCanvas(p.residentPosition + new Vector2(0, 1.7f));
+            bubble.localScale = Vector3.one * Mathf.MoveTowards(bubble.localScale.x, 1f, Time.unscaledDeltaTime * 6f);
+            bubble.anchoredPosition = ClampToCanvas(ToCanvas(bubbleAnchor()), bubble);
+        }
+
+        /// <summary>말풍선 · 돋보기가 화면 가장자리에서 잘리지 않도록 캔버스 안쪽으로 붙잡는다.</summary>
+        Vector2 ClampToCanvas(Vector2 pos, RectTransform rt)
+        {
+            var area = ((RectTransform)canvas.transform).rect;
+            var size = rt.rect.size;
+            var pivot = rt.pivot;
+            const float margin = 12f;
+            float minX = area.xMin + size.x * pivot.x + margin, maxX = area.xMax - size.x * (1 - pivot.x) - margin;
+            float minY = area.yMin + size.y * pivot.y + margin, maxY = area.yMax - size.y * (1 - pivot.y) - 96f;
+            return new Vector2(Mathf.Clamp(pos.x, minX, Mathf.Max(minX, maxX)), Mathf.Clamp(pos.y, minY, Mathf.Max(minY, maxY)));
         }
 
         Vector2 ToCanvas(Vector2 worldLocal)
@@ -542,7 +629,11 @@ namespace ProcurementHero.Field
 
         IEnumerator FlyToNotebook(FieldProblemEntry p)
         {
-            if (!notebookButton) yield break;
+            if (!notebookButton)
+            {
+                RefreshHud();
+                yield break;
+            }
             var icon = FieldArt.ProblemIcon(toastRoot, p.kind, 70);
             Vector2 from = ToCanvas(p.observePoint);
             Vector2 to = ((RectTransform)notebookButton.transform).position;
@@ -557,6 +648,24 @@ namespace ProcurementHero.Field
                 yield return null;
             }
             if (icon) Destroy(icon.gameObject);
+            // 기록이 수첩에 닿은 뒤에 관찰 수와 배지를 올린다.
+            sound.Play(Sfx.Check);
+            if (notebookBadge) notebookBadge.gameObject.SetActive(true);
+            RefreshHud();
+            if (observeCounter) StartCoroutine(Bump(observeCounter.transform.parent));
+            if (notebookButton) StartCoroutine(Bump(notebookButton.transform));
+        }
+
+        static IEnumerator Bump(Transform target)
+        {
+            float t = 0;
+            while (t < 0.25f && target)
+            {
+                t += Time.unscaledDeltaTime;
+                target.localScale = Vector3.one * (1f + Mathf.Sin(t / 0.25f * Mathf.PI) * 0.12f);
+                yield return null;
+            }
+            if (target) target.localScale = Vector3.one;
         }
 
         Coroutine toastRoutine;

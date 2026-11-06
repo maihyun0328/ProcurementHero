@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using ProcurementHero.Core.Field;
@@ -97,6 +98,12 @@ namespace ProcurementHero.Field
 
         // ───────── 결과 ─────────
 
+        FieldBook.Parts resultBook;
+
+        /// <summary>
+        /// 결과는 수첩의 기록 페이지로 보여 준다: 손에서 수첩이 펼쳐져 이번 계획 페이지가 보이고,
+        /// 페이지를 넘기면 전후 기록과 별·도장이 나온다.
+        /// </summary>
         public void ShowResult()
         {
             if (State != FieldState.Review || LastConfirmed == null) return;
@@ -104,71 +111,175 @@ namespace ProcurementHero.Field
             if (resultButton) Destroy(resultButton.gameObject);
             resultButton = null;
             if (reviewBanner) Destroy(reviewBanner.gameObject);
-            var r = LastConfirmed;
-            bool newBest = FieldRecords.SubmitMission(Mission.id, r.Stars);
-            sound.Play(Sfx.Stamp);
             RefreshHud();
+            StartCoroutine(ResultSequence(LastConfirmed, screenToken));
+        }
 
+        IEnumerator ResultSequence(FieldEvaluation r, int token)
+        {
+            bool newBest = FieldRecords.SubmitMission(Mission.id, r.Stars);
             var dim = UIKit.Panel(overlayRoot, "Result", Theme.WithAlpha(Theme.Navy, 0.5f), ShapeSprites.Square, true).rectTransform;
             dim.Fill();
-            var page = UIKit.Panel(dim, "Page", Theme.Hex(0xFFF9EC)).rectTransform;
-            page.Region(0.2f, 0.08f, 0.8f, 0.92f);
+            resultBook = FieldBook.Build(dim, new Vector2(0.08f, 0.05f), new Vector2(0.92f, 0.95f), false);
+            BuildPlanSpread(resultBook, r);
+            resultBook.group.alpha = 0f; // 손에서 펼치기 전까지 숨긴다(완성된 수첩이 한 프레임 보이지 않게).
 
-            var title = UIKit.Text(page, "Title", $"현장 {MissionIndex + 1} · {Mission.title}", 34, Theme.Navy, TextAlignmentOptions.Center, true);
-            title.rectTransform.Region(0.05f, 0.88f, 0.95f, 0.97f);
+            yield return Pose(0f, 1f, 0.12f);
+            yield return FieldBook.Open(resultBook, HandOnCanvas(), () => sound.Play(Sfx.NotebookOpen));
+            if (token != screenToken) yield break;
+            yield return Wait(0.25f);
+            if (token != screenToken) yield break;
 
-            string stars = new string('★', r.Stars) + new string('☆', 3 - r.Stars);
-            var starText = UIKit.Text(page, "Stars", stars, 86, Theme.Warning, TextAlignmentOptions.Center, true);
-            starText.rectTransform.Region(0.05f, 0.73f, 0.6f, 0.88f);
-            var starLabel = UIKit.Text(page, "StarCount", $"별 {r.Stars}개" + (newBest ? "  · 새 기록!" : ""), 26, Theme.Navy, TextAlignmentOptions.Center, true);
-            starLabel.rectTransform.Region(0.05f, 0.68f, 0.6f, 0.74f);
+            // 계획 페이지 → 결과 기록 페이지
+            resultBook.group.interactable = false;
+            BuildResultRight(resultBook.right, r, newBest);
+            sound.Play(Sfx.NotebookOpen);
+            yield return FieldBook.TurnPage(resultBook, () => BuildResultLeft(resultBook.left, r));
+            if (token != screenToken) yield break;
+            sound.Play(Sfx.Stamp);
+            yield return FieldBook.Stamp(resultBook, resultBook.right, new Vector2(0.78f, 0.8f), r.Success ? "해결" : "재도전", r.Success ? Theme.Success : Theme.Danger, 170f);
+            if (token != screenToken) yield break;
+            resultBook.group.interactable = true;
+            var first = resultBook.right.Find("Buttons")?.GetComponentInChildren<Button>();
+            if (first) Select(first);
+        }
 
-            // 도장
-            var stamp = UIKit.Panel(page, "Stamp", Theme.WithAlpha(r.Success ? Theme.Success : Theme.Danger, 0.9f), ShapeSprites.Circle).rectTransform;
-            stamp.Place(new Vector2(0.8f, 0.79f), Vector2.zero, new Vector2(180, 180));
-            stamp.localRotation = Quaternion.Euler(0, 0, -12);
-            UIKit.Panel(stamp, "Inner", PageColorLight, ShapeSprites.Circle).rectTransform.Fill(12, 12, 12, 12);
-            UIKit.Text(stamp, "Text", r.Success ? "해결" : "재도전", 46, r.Success ? Theme.Success : Theme.Danger, TextAlignmentOptions.Center, true).rectTransform.Fill();
+        IEnumerator Wait(float seconds)
+        {
+            float t = 0;
+            while (t < seconds) { t += Time.unscaledDeltaTime; yield return null; }
+        }
 
-            // 문제별 전후
-            var rows = UIKit.Rect(page, "Rows").Region(0.06f, 0.24f, 0.94f, 0.66f);
-            UIKit.VerticalList(rows, 10).childForceExpandHeight = false;
+        static void ClearPage(RectTransform page)
+        {
+            // 줄 무늬·그늘은 남기고 내용만 지운다.
+            for (int i = page.childCount - 1; i >= 0; i--)
+            {
+                var c = page.GetChild(i);
+                if (c.name == "Rule" || c.name == "Gutter") continue;
+                c.gameObject.SetActive(false);
+                Destroy(c.gameObject);
+            }
+        }
+
+        void BuildPlanSpread(FieldBook.Parts book, FieldEvaluation r)
+        {
+            var left = book.left;
+            UIKit.Text(left, "Title", "이번 계획", 34, Theme.Navy, TextAlignmentOptions.MidlineLeft, true).rectTransform.Region(0.07f, 0.86f, 0.95f, 0.96f);
+            var list = UIKit.Rect(left, "Plan").Region(0.07f, 0.2f, 0.93f, 0.84f);
+            UIKit.VerticalList(list, 12).childForceExpandHeight = false;
+            foreach (var spot in Mission.spots)
+            {
+                var row = UIKit.Rect(list, "Row_" + spot.id);
+                UIKit.Layout(row, 86);
+                r.Assignments.TryGetValue(spot.id, out var itemId);
+                var item = itemId != null ? Mission.Item(itemId) : null;
+                if (item != null) FieldArt.ItemIcon(row, item.visual, 70).Place(new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(70, 70));
+                else UIKit.Shape(row, "Empty", ShapeSprites.Circle, Theme.WithAlpha(Theme.Navy, 0.18f), new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(34, 34)).raycastTarget = false;
+                UIKit.Text(row, "Text", $"<b>{spot.displayName}</b>\n{(item != null ? item.displayName : "비어 있음")}", 24, item != null ? Theme.Navy : Theme.NavySoft,
+                    TextAlignmentOptions.MidlineLeft).rectTransform.Fill(96, 0, 0, 0);
+            }
+            UIKit.Text(left, "Cost", $"사용한 예산 {r.Cost} / {r.Budget}", 26, Theme.NavySoft, TextAlignmentOptions.MidlineLeft, true).rectTransform.Region(0.07f, 0.06f, 0.95f, 0.16f);
+            UIKit.Text(book.right, "Title", "결과 기록", 34, Theme.NavySoft, TextAlignmentOptions.Center, true).rectTransform.Region(0.05f, 0.45f, 0.95f, 0.55f);
+        }
+
+        void BuildResultLeft(RectTransform left, FieldEvaluation r)
+        {
+            ClearPage(left);
+            UIKit.Text(left, "Title", "현장 전후", 34, Theme.Navy, TextAlignmentOptions.MidlineLeft, true).rectTransform.Region(0.07f, 0.86f, 0.95f, 0.96f);
+            var rows = UIKit.Rect(left, "Rows").Region(0.06f, 0.08f, 0.94f, 0.84f);
+            UIKit.VerticalList(rows, 12).childForceExpandHeight = false;
             foreach (var p in Mission.problems)
             {
                 bool solved = r.IsSolved(p.id);
                 var row = UIKit.Panel(rows, "Row_" + p.id, solved ? Theme.SuccessPale : (p.required ? Theme.DangerPale : Theme.WarningPale));
-                UIKit.Layout(row, 76);
-                FieldArt.ProblemIcon(row.transform, p.kind, 54).Place(new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(54, 54));
-                UIKit.Text(row.transform, "Name", (p.required ? "" : "추가 목표 · ") + p.displayName, 26, Theme.Navy, TextAlignmentOptions.MidlineLeft, true)
-                    .rectTransform.Region(0, 0, 0.5f, 1).offsetMin = new Vector2(84, 0);
-                // 전 → 후 작은 그림
+                UIKit.Layout(row, 92);
+                FieldArt.ProblemIcon(row.transform, p.kind, 54).Place(new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(54, 54));
+                UIKit.Text(row.transform, "Name", (p.required ? "" : "추가 · ") + p.displayName, 25, Theme.Navy, TextAlignmentOptions.MidlineLeft, true)
+                    .rectTransform.Region(0, 0, 0.46f, 1).offsetMin = new Vector2(80, 0);
+                // 전 → 후 작은 그림(색과 함께 체크·점 표시로 구분)
                 var before = UIKit.Panel(row.transform, "Before", BeforeColor(p.kind)).rectTransform;
-                before.Place(new Vector2(0.56f, 0.5f), Vector2.zero, new Vector2(56, 44));
-                UIKit.Text(row.transform, "Arrow", "→", 28, Theme.NavySoft, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0.62f, 0.5f), Vector2.zero, new Vector2(40, 40));
+                before.Place(new Vector2(0.53f, 0.5f), Vector2.zero, new Vector2(60, 48));
+                UIKit.Text(row.transform, "Arrow", "→", 28, Theme.NavySoft, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0.61f, 0.5f), Vector2.zero, new Vector2(40, 40));
                 var after = UIKit.Panel(row.transform, "After", solved ? AfterColor(p.kind) : BeforeColor(p.kind)).rectTransform;
-                after.Place(new Vector2(0.68f, 0.5f), Vector2.zero, new Vector2(56, 44));
+                after.Place(new Vector2(0.69f, 0.5f), Vector2.zero, new Vector2(60, 48));
                 if (solved) FieldArt.Tick(after, 34, Theme.Success).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(34, 34));
-                var state = UIKit.Text(row.transform, "State", solved ? "○ 해결" : "△ 남음", 26, solved ? Theme.Success : (p.required ? Theme.Danger : Theme.Warning), TextAlignmentOptions.MidlineRight, true);
-                state.rectTransform.Region(0.72f, 0, 1, 1).offsetMax = new Vector2(-20, 0);
+                else UIKit.Text(after, "Still", "…", 26, Color.white, TextAlignmentOptions.Center, true).rectTransform.Fill();
+                var state = UIKit.Text(row.transform, "State", solved ? "○ 해결" : "△ 남음", 25, solved ? Theme.Success : (p.required ? Theme.Danger : Theme.Warning), TextAlignmentOptions.MidlineRight, true);
+                state.rectTransform.Region(0.74f, 0, 1, 1).offsetMax = new Vector2(-16, 0);
             }
+        }
 
-            string guide = r.Stars == 3 ? "모든 곳이 바뀌었어요! 다음 현장으로 가요."
+        void BuildResultRight(RectTransform right, FieldEvaluation r, bool newBest)
+        {
+            ClearPage(right);
+            UIKit.Text(right, "Title", $"현장 {MissionIndex + 1} · {Mission.title}", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true).rectTransform.Region(0.07f, 0.88f, 0.95f, 0.97f);
+            string stars = new string('★', r.Stars) + new string('☆', 3 - r.Stars);
+            UIKit.Text(right, "Stars", stars, 92, Theme.Warning, TextAlignmentOptions.Center, true).rectTransform.Region(0.04f, 0.62f, 0.62f, 0.86f);
+            UIKit.Text(right, "StarCount", $"별 {r.Stars}개" + (newBest ? "  · 새 기록!" : ""), 26, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0.04f, 0.56f, 0.62f, 0.63f);
+
+            string guide = r.Stars == 3 ? (MissionIndex + 1 >= database.missions.Count ? "모든 곳이 바뀌었어요! 마을의 하루를 확인해 봐요." : "모든 곳이 바뀌었어요! 다음 현장으로 가요.")
                 : r.Success ? "필요한 곳을 모두 해결했어요. 추가 목표도 해결하면 별 3개예요."
                 : r.Stars == 1 ? "아직 불편한 곳이 남았어요. 붉게 표시된 곳을 다시 계획해 봐요."
-                : "필수 문제를 해결하지 못했어요. 수첩에서 자리와 물품을 다시 골라 봐요.";
-            var g = UIKit.Text(page, "Guide", guide + $"\n<size=22><color=#{ColorUtility.ToHtmlStringRGB(Theme.NavySoft)}>사용한 예산 {r.Cost} / {r.Budget}</color></size>", 26, Theme.Navy, TextAlignmentOptions.Center);
-            g.rectTransform.Region(0.05f, 0.13f, 0.95f, 0.24f);
+                : "필수 문제를 해결하지 못했어요. 자리와 물품을 다시 골라 봐요.";
+            UIKit.Text(right, "Guide", guide, 26, Theme.Navy, TextAlignmentOptions.Center).rectTransform.Region(0.07f, 0.3f, 0.93f, 0.5f);
 
-            var bar = UIKit.Rect(page, "Buttons").Region(0.05f, 0.025f, 0.95f, 0.115f);
-            UIKit.HorizontalList(bar, 18);
+            var bar = UIKit.Rect(right, "Buttons").Region(0.06f, 0.06f, 0.94f, 0.26f);
+            UIKit.VerticalList(bar, 12).childForceExpandHeight = true;
             var list = new List<Selectable>();
             bool last = MissionIndex >= database.missions.Count - 1;
             if (r.Success)
-                list.Add(UIKit.Button(bar, "Next", last ? "엔딩 보기" : "다음 현장", () => { if (last) ShowEnding(); else StartMission(MissionIndex + 1); }));
-            list.Add(UIKit.Button(bar, "Replan", "다시 계획하기", () => StartMission(MissionIndex, replan: true), r.Success ? ButtonStyle.Secondary : ButtonStyle.Primary));
-            list.Add(UIKit.Button(bar, "Title", "타이틀로", ShowTitle, ButtonStyle.Secondary));
-            UIKit.ChainNavigation(list.ToArray(), false);
-            SelectNextFrame(() => list[0]);
+                list.Add(UIKit.Button(bar, "Next", last ? "엔딩 보기" : "다음 현장", () =>
+                {
+                    if (resultBook != null && !resultBook.group.interactable) return;
+                    if (last) ShowEnding();
+                    else StartCoroutine(NextMissionSequence(MissionIndex + 1, screenToken));
+                }));
+            var buttonsRow = UIKit.Rect(bar, "Row");
+            UIKit.HorizontalList(buttonsRow, 12);
+            list.Add(UIKit.Button(buttonsRow, "Replan", "다시 계획하기", () => StartMission(MissionIndex, replan: true), r.Success ? ButtonStyle.Secondary : ButtonStyle.Primary));
+            list.Add(UIKit.Button(buttonsRow, "Title", "타이틀로", ShowTitle, ButtonStyle.Secondary));
+            UIKit.ChainNavigation(list.ToArray(), true);
+        }
+
+        /// <summary>현재 현장 완료 → 페이지를 넘겨 다음 현장 소개 → 수첩을 덮고 출발. 건너뛰기(Space·Enter) 가능.</summary>
+        IEnumerator NextMissionSequence(int next, int token)
+        {
+            if (resultBook == null) { StartMission(next); yield break; }
+            resultBook.group.interactable = false;
+            if (EventSystem.current) EventSystem.current.SetSelectedGameObject(null);
+            var m = database.missions[next];
+            sound.Play(Sfx.NotebookOpen);
+            yield return FieldBook.TurnPage(resultBook, () =>
+            {
+                ClearPage(resultBook.left);
+                UIKit.Text(resultBook.left, "Intro", $"<size=30><color=#{ColorUtility.ToHtmlStringRGB(Theme.TealDark)}>현장 {next + 1}</color></size>\n<b>{m.title}</b>\n<size=28>{m.placeName}</size>",
+                    52, Theme.Navy, TextAlignmentOptions.Center).rectTransform.Region(0.06f, 0.45f, 0.94f, 0.85f);
+                UIKit.Text(resultBook.left, "Line", m.intro, 26, Theme.NavySoft, TextAlignmentOptions.Center).rectTransform.Region(0.08f, 0.2f, 0.92f, 0.42f);
+                ClearPage(resultBook.right);
+                UIKit.Text(resultBook.right, "Goals", "살펴볼 곳", 30, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0.05f, 0.78f, 0.95f, 0.9f);
+                var row = UIKit.Rect(resultBook.right, "Icons").Region(0.06f, 0.42f, 0.94f, 0.74f);
+                UIKit.HorizontalList(row, 18, null, TextAnchor.MiddleCenter, false);
+                foreach (var p in m.problems.Where(p => p.mustObserve))
+                {
+                    var cell = UIKit.Panel(row, "Unknown", Theme.WithAlpha(Theme.NavySoft, 0.18f)).rectTransform;
+                    UIKit.Layout(cell, 150, 150);
+                    FieldArt.UnknownPattern(cell, Theme.WithAlpha(Theme.Navy, 0.15f));
+                    UIKit.Text(cell, "Q", "?", 64, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Fill();
+                }
+            });
+            float wait = 0;
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            while (wait < 1.1f && token == screenToken)
+            {
+                wait += Time.unscaledDeltaTime;
+                if (kb != null && (kb.spaceKey.isPressed || kb.enterKey.isPressed) && wait > 0.2f) break;
+                yield return null;
+            }
+            if (token != screenToken) yield break;
+            yield return FieldBook.Close(resultBook, HandOnCanvas());
+            if (token != screenToken) yield break;
+            StartMission(next);
         }
 
         static readonly Color PageColorLight = Theme.Hex(0xFFF9EC);
@@ -331,7 +442,7 @@ namespace ProcurementHero.Field
         public void OpenPause()
         {
             if (paused || modalStack.Count > 0) return;
-            if (State != FieldState.Explore && State != FieldState.Installing && State != FieldState.Review) return;
+            if (State != FieldState.Explore && State != FieldState.Installing && State != FieldState.Review && State != FieldState.Arriving) return;
             SetPaused(true);
             var modal = OpenModal("일시정지", 0.32f, 0.62f);
             modal.isPause = true;
