@@ -34,7 +34,9 @@ namespace ProcurementHero.Field
         Generator,
         Pump,
         Sandbags,
-        PortableGenerator
+        PortableGenerator,
+        FloorCooler,
+        BigPump
     }
 
     public enum FieldObstacleKind
@@ -98,6 +100,22 @@ namespace ProcurementHero.Field
         [Tooltip("이 문제가 해결되면 사라지는 장애물(예: 배수 후 물웅덩이). 비우면 항상 남는다.")] public string clearedBy;
     }
 
+    /// <summary>
+    /// 특정 자리에 놓은 특정 물품이 문제를 해결했을 때 주민이 보이는 반응.
+    /// 같은 문제라도 무엇으로 해결했는지에 따라 대사와 머무는 자리가 달라진다(예: 그늘막 아래 / 현관 바람 앞).
+    /// 해결 여부는 FieldRules 판정이 정하고, 이 데이터는 보여 주는 방식만 정한다.
+    /// </summary>
+    [Serializable]
+    public class FieldReaction
+    {
+        public string spotId;
+        public string itemId;
+        public string problemId;
+        [Tooltip("해결 후 주민 대사. 비우면 문제의 기본 해결 대사")] public string line;
+        [Tooltip("해결 후 주민이 옮겨 가는지")] public bool moveResident;
+        [Tooltip("옮겨 간 뒤 주민 발 아래 중심(월드 좌표)")] public Vector2 residentPosition;
+    }
+
     [Serializable]
     public class FieldPath
     {
@@ -123,10 +141,29 @@ namespace ProcurementHero.Field
         public List<FieldSpotEntry> spots = new List<FieldSpotEntry>();
         public List<FieldObstacle> obstacles = new List<FieldObstacle>();
         public List<FieldPath> paths = new List<FieldPath>();
+        [Tooltip("물품·자리별 주민 반응. 목록 순서가 우선순위다(같은 문제에 둘 이상 맞으면 앞의 것)")]
+        public List<FieldReaction> reactions = new List<FieldReaction>();
 
         public FieldProblemEntry Problem(string problemId) => problems.FirstOrDefault(p => p.id == problemId);
         public FieldItemEntry Item(string itemId) => items.FirstOrDefault(i => i.id == itemId);
         public FieldSpotEntry Spot(string spotId) => spots.FirstOrDefault(s => s.id == spotId);
+
+        /// <summary>
+        /// 확정된 배정에서 문제를 해결한 자리·물품에 맞는 반응. 판정상 해결되지 않았다면 null.
+        /// 반응 목록 순서대로 찾고, 맞는 반응이 없으면 null(기본 해결 대사를 쓴다).
+        /// </summary>
+        public FieldReaction ReactionFor(string problemId, IReadOnlyDictionary<string, string> assignments)
+        {
+            if (assignments == null) return null;
+            foreach (var r in reactions)
+            {
+                if (r.problemId != problemId) continue;
+                if (!assignments.TryGetValue(r.spotId, out var item) || item != r.itemId) continue;
+                var option = Spot(r.spotId)?.options.FirstOrDefault(o => o.itemId == r.itemId);
+                if (option != null && option.solves.Contains(problemId)) return r;
+            }
+            return null;
+        }
 
         public FieldMissionSpec ToSpec()
         {

@@ -101,7 +101,8 @@ namespace ProcurementHero.Field
         {
             var root = new GameObject("Item_" + visual).transform;
             root.SetParent(parent, false);
-            Shadow(root, new Vector2(0, 0.02f), visual == FieldItemVisual.Shade ? 2.4f : 1.1f);
+            // 그늘막의 바닥 그늘은 FieldWorld가 땅 높이에 따로 그린다(사람을 덮지 않게).
+            if (visual != FieldItemVisual.Shade) Shadow(root, new Vector2(0, 0.02f), visual == FieldItemVisual.BigPump ? 1.5f : 1.1f);
             switch (visual)
             {
                 case FieldItemVisual.StreetLamp:
@@ -138,7 +139,6 @@ namespace ProcurementHero.Field
                     Round(root, "Canvas", Theme.Teal, new Vector2(0, 1.42f), new Vector2(2.6f, 0.5f), 2);
                     for (int i = 0; i < 4; i++)
                         Box(root, "Stripe", Theme.Paper, new Vector2(-0.9f + i * 0.6f, 1.42f), new Vector2(0.22f, 0.44f), 3);
-                    Ellipse(root, "ShadeArea", Theme.WithAlpha(Theme.Navy, 0.15f), new Vector2(0, 0.1f), new Vector2(2.6f, 0.7f), -4);
                     break;
                 case FieldItemVisual.Generator:
                     Round(root, "Body", Theme.Warning, new Vector2(0, 0.5f), new Vector2(1.3f, 1f), 1);
@@ -161,6 +161,23 @@ namespace ProcurementHero.Field
                     Dot(root, "Gauge", Theme.Paper, new Vector2(-0.18f, 0.55f), 0.32f, 2);
                     Box(root, "Needle", Theme.Danger, new Vector2(-0.12f, 0.58f), new Vector2(0.12f, 0.03f), 3);
                     Round(root, "Hose", Theme.TealDark, new Vector2(0.85f, 0.2f), new Vector2(0.8f, 0.18f), 0);
+                    break;
+                case FieldItemVisual.FloorCooler:
+                    Round(root, "Body", Theme.Paper, new Vector2(0, 0.85f), new Vector2(0.9f, 1.7f), 1);
+                    Round(root, "Panel", Theme.Hex(0xE3E8EE), new Vector2(0, 1.35f), new Vector2(0.7f, 0.42f), 2);
+                    for (int i = 0; i < 4; i++)
+                        Box(root, "Vent", Theme.NavySoft, new Vector2(0, 0.45f + i * 0.14f), new Vector2(0.66f, 0.05f), 3);
+                    Dot(root, "Led", Theme.Teal, new Vector2(0.24f, 1.45f), 0.1f, 3);
+                    for (int i = 0; i < 3; i++)
+                        Round(root, "Wind", Theme.WithAlpha(Theme.Cool, 0.8f), new Vector2(0.75f + i * 0.08f, 0.55f + i * 0.28f), new Vector2(0.42f, 0.08f), 2);
+                    break;
+                case FieldItemVisual.BigPump:
+                    Round(root, "Body", Theme.TealDark, new Vector2(0, 0.55f), new Vector2(1.5f, 1.1f), 1);
+                    Round(root, "Top", Theme.Teal, new Vector2(0, 1.0f), new Vector2(1.3f, 0.26f), 2);
+                    Dot(root, "Gauge", Theme.Paper, new Vector2(-0.3f, 0.6f), 0.36f, 2);
+                    Box(root, "Needle", Theme.Danger, new Vector2(-0.24f, 0.63f), new Vector2(0.14f, 0.03f), 3);
+                    Round(root, "HoseA", Theme.Hex(0x1F5D5A), new Vector2(1.1f, 0.25f), new Vector2(1.0f, 0.22f), 0);
+                    Round(root, "HoseB", Theme.Hex(0x1F5D5A), new Vector2(-1.1f, 0.2f), new Vector2(0.9f, 0.22f), 0);
                     break;
                 default:
                     for (int i = 0; i < 3; i++)
@@ -234,6 +251,19 @@ namespace ProcurementHero.Field
                     Ui(root, "Body", ShapeSprites.Rounded, Theme.Teal, new Vector2(-8 * k, 0), new Vector2(56 * k, 50 * k));
                     Ui(root, "Pipe", ShapeSprites.Square, Theme.TealDark, new Vector2(28 * k, -8 * k), new Vector2(30 * k, 10 * k));
                     Ui(root, "Drop", ShapeSprites.Circle, Theme.Cool, new Vector2(40 * k, -26 * k), new Vector2(12 * k, 12 * k));
+                    break;
+                case FieldItemVisual.FloorCooler:
+                    Ui(root, "Body", ShapeSprites.Rounded, Theme.Paper, new Vector2(-10 * k, 0), new Vector2(44 * k, 84 * k));
+                    Ui(root, "Panel", ShapeSprites.Rounded, Theme.Hex(0xE3E8EE), new Vector2(-10 * k, 24 * k), new Vector2(34 * k, 20 * k));
+                    for (int i = 0; i < 3; i++)
+                        Ui(root, "Wind", ShapeSprites.Rounded, Theme.Cool, new Vector2(30 * k, -20 * k + i * 18 * k), new Vector2(24 * k, 6 * k));
+                    break;
+                case FieldItemVisual.BigPump:
+                    Ui(root, "Body", ShapeSprites.Rounded, Theme.TealDark, new Vector2(0, 0), new Vector2(72 * k, 56 * k));
+                    Ui(root, "Gauge", ShapeSprites.Circle, Theme.Paper, new Vector2(-14 * k, 4 * k), new Vector2(20 * k, 20 * k));
+                    Ui(root, "PipeA", ShapeSprites.Square, Theme.Teal, new Vector2(40 * k, -14 * k), new Vector2(22 * k, 10 * k));
+                    Ui(root, "PipeB", ShapeSprites.Square, Theme.Teal, new Vector2(-40 * k, -14 * k), new Vector2(22 * k, 10 * k));
+                    Ui(root, "Drop", ShapeSprites.Circle, Theme.Cool, new Vector2(46 * k, -32 * k), new Vector2(14 * k, 14 * k));
                     break;
                 default:
                     for (int i = 0; i < 3; i++)

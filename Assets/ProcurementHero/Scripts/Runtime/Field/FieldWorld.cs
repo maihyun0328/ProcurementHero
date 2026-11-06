@@ -42,8 +42,15 @@ namespace ProcurementHero.Field
             public SpriteRenderer beacon, jugWater, sweat;
             public Rig resident;
             public GameObject tick;
+            public Transform jug;
             public float phase, reactTimer, cheerTimer;
             public bool reacted;
+            // 주민이 머무는 자리(anchor)와 해결 후 옮겨 가는 이동. 판정 결과에 맞는 반응(reaction)이 정한다.
+            public Vector2 anchor, moveFrom, moveTo;
+            public float moveT = 1f;
+            public FieldReaction reaction;
+            public FieldItemVisual? solvedBy;
+            public bool Moving => moveT < 1f;
         }
 
         class Puddle
@@ -58,6 +65,8 @@ namespace ProcurementHero.Field
         readonly Dictionary<string, GameObject> installed = new Dictionary<string, GameObject>();
         readonly List<Puddle> puddles = new List<Puddle>();
         readonly List<Transform> rain = new List<Transform>();
+        // 설치 연출 중에만 있는 임시 오브젝트(운반 상자·반짝임). 건너뛰기·재시작 때 모두 지운다.
+        readonly List<GameObject> temps = new List<GameObject>();
         Transform truck, van;
         Rig player;
         float observePose, observeTimer, notebookPose;
@@ -253,6 +262,7 @@ namespace ProcurementHero.Field
                     {
                         site.tint = FieldArt.Round(transform, "Thirst_" + p.id, Theme.WithAlpha(Theme.Danger, 0.12f), p.zoneCenter, p.zoneSize, FieldArt.OrderZone);
                         var jug = FieldArt.DepthRoot(transform, "Jug", p.observePoint + new Vector2(1.6f, 0.4f), p.observePoint.y);
+                        site.jug = jug;
                         FieldArt.Shadow(jug, new Vector2(0, -0.45f), 0.8f);
                         FieldArt.Round(jug, "Body", Theme.Paper, Vector2.zero, new Vector2(0.6f, 0.9f), 0);
                         site.jugWater = FieldArt.Round(jug, "Water", Theme.Cool, new Vector2(0, -0.25f), new Vector2(0.44f, 0.12f), 1);
@@ -273,6 +283,7 @@ namespace ProcurementHero.Field
                         break;
                 }
 
+                site.anchor = p.residentPosition;
                 site.resident = BuildPerson(p.residentPosition, index, false);
                 AddProp(site);
                 site.tick = new GameObject("Observed_" + p.id);
@@ -425,6 +436,31 @@ namespace ProcurementHero.Field
         public bool PuddleBlocking(string problemId) => puddles.Any(p => p.clearedBy == problemId && p.collider.enabled);
         public float SiteLevel(string problemId) => sites.TryGetValue(problemId, out var s) ? s.level : -1f;
 
+        /// <summary>주민의 지금 위치(이동 중이면 이동 중인 위치).</summary>
+        public Vector2 ResidentPosition(string problemId) => sites.TryGetValue(problemId, out var s) ? (Vector2)s.resident.root.localPosition : Vector2.zero;
+
+        /// <summary>주민이 머무는 자리(이동이 끝난 뒤의 위치). 설치 전에는 데이터의 대기 위치.</summary>
+        public Vector2 ResidentAnchor(string problemId) => sites.TryGetValue(problemId, out var s) ? s.anchor : Vector2.zero;
+
+        public bool ResidentMoved(string problemId) => sites.TryGetValue(problemId, out var s) && (s.Moving || s.anchor != s.data.residentPosition);
+
+        /// <summary>문제를 해결한 물품 그림(해결 전이면 null). 반응·그림을 고르는 데만 쓰고 판정에는 쓰지 않는다.</summary>
+        public FieldItemVisual? SolvedBy(string problemId) => sites.TryGetValue(problemId, out var s) ? s.solvedBy : null;
+
+        /// <summary>관찰할 때 다가가야 하는 지점. 주민이 옮겨 갔다면 새 자리 앞이다.</summary>
+        public Vector2 ObservePoint(FieldProblemEntry p) =>
+            sites.TryGetValue(p.id, out var s) && s.anchor != p.residentPosition ? s.anchor + new Vector2(0, -0.9f) : p.observePoint;
+
+        /// <summary>해결 후 대사: 실제로 해결한 자리·물품의 반응 대사, 없으면 문제의 기본 해결 대사.</summary>
+        public string SolvedLine(FieldProblemEntry p) =>
+            sites.TryGetValue(p.id, out var s) && s.reaction != null && !string.IsNullOrEmpty(s.reaction.line) ? s.reaction.line : p.solvedLine;
+
+        /// <summary>남아 있는 임시 연출 오브젝트 수(검증용).</summary>
+        public int TempObjectCount => temps.Count(t => t);
+
+        /// <summary>설치된 물품의 자리 목록(검증용).</summary>
+        public IEnumerable<string> InstalledSpots => installed.Keys;
+
         public void MarkObserved(string problemId, bool observed)
         {
             if (sites.TryGetValue(problemId, out var s)) s.tick.SetActive(observed);
@@ -439,7 +475,7 @@ namespace ProcurementHero.Field
             float bestDistance = ObserveRange;
             foreach (var p in Mission.problems)
             {
-                float d = Vector2.Distance(pos, p.observePoint);
+                float d = Vector2.Distance(pos, ObservePoint(p));
                 if (d <= bestDistance)
                 {
                     bestDistance = d;
@@ -456,8 +492,52 @@ namespace ProcurementHero.Field
         {
             if (installing != null) StopCoroutine(installing);
             installing = null;
+            ClearTemps();
             ApplyState(result);
         }
+
+        GameObject Temp(GameObject go)
+        {
+            temps.Add(go);
+            return go;
+        }
+
+        void KillTemp(GameObject go)
+        {
+            temps.Remove(go);
+            Kill(go);
+        }
+
+        void ClearTemps()
+        {
+            foreach (var go in temps) Kill(go);
+            temps.Clear();
+        }
+
+        /// <summary>판정에서 해결된 문제에 대해 어떤 물품이 해결했는지와 주민 반응을 정한다(그림·대사용).</summary>
+        void ResolveOutcome(Site site, FieldEvaluation result)
+        {
+            site.reaction = null;
+            site.solvedBy = null;
+            if (result == null || !result.IsSolved(site.data.id)) return;
+            site.reaction = Mission.ReactionFor(site.data.id, result.Assignments);
+            if (site.reaction != null)
+            {
+                site.solvedBy = Mission.Item(site.reaction.itemId)?.visual;
+                return;
+            }
+            foreach (var spot in Mission.spots)
+            {
+                if (!result.Assignments.TryGetValue(spot.id, out var itemId)) continue;
+                var option = spot.options.FirstOrDefault(o => o.itemId == itemId);
+                if (option == null || !option.solves.Contains(site.data.id)) continue;
+                site.solvedBy = Mission.Item(itemId)?.visual;
+                return;
+            }
+        }
+
+        static Vector2 SettledPosition(Site site) =>
+            site.reaction != null && site.reaction.moveResident ? site.reaction.residentPosition : site.data.residentPosition;
 
         void ApplyState(FieldEvaluation result)
         {
@@ -469,6 +549,13 @@ namespace ProcurementHero.Field
             {
                 site.level = site.target = result != null && result.IsSolved(site.data.id) ? 1f : 0f;
                 site.reacted = site.level >= 1f;
+                site.cheerTimer = 0f;
+                ResolveOutcome(site, result);
+                // 건너뛰기·정상 재생 모두 같은 자리로 정착한다. 재계획(결과 없음)이면 설치 전 대기 위치로 돌아간다.
+                site.anchor = SettledPosition(site);
+                site.moveT = 1f;
+                site.resident.root.localPosition = site.anchor;
+                FieldArt.SetDepth(site.resident.root, site.anchor.y - 0.45f);
                 Render(site);
             }
         }
@@ -486,9 +573,17 @@ namespace ProcurementHero.Field
             var item = Mission.Item(itemId);
             if (spot == null || item == null) return;
             if (installed.TryGetValue(spotId, out var old)) Kill(old);
-            var root = FieldArt.DepthRoot(transform, "Installed_" + spotId, spot.position, spot.position.y);
+            var container = new GameObject("Installed_" + spotId).transform;
+            container.SetParent(transform, false);
+            container.localPosition = spot.position;
+            var root = FieldArt.DepthRoot(container, "Model", Vector2.zero, spot.position.y);
             FieldArt.ItemModel(root, item.visual);
-            installed[spotId] = root.gameObject;
+            if (item.visual == FieldItemVisual.Shade)
+            {
+                // 그늘은 땅에 그린다: 사람보다 아래, 길보다 위.
+                FieldArt.Ellipse(container, "ShadeGround", Theme.WithAlpha(Theme.Navy, 0.22f), new Vector2(0.15f, 0.45f), new Vector2(2.5f, 1.0f), FieldArt.OrderFlat + 3);
+            }
+            installed[spotId] = container.gameObject;
             spotMarkers[spotId].gameObject.SetActive(false);
         }
 
@@ -519,6 +614,8 @@ namespace ProcurementHero.Field
 
         IEnumerator InstallRoutine(FieldEvaluation result, Action<Sfx> sound)
         {
+            // 판정 결과로 '무엇이 해결했는지'를 먼저 정해 둔다. 주민은 반응에 적힌 자리의 물품이 놓일 때 옮겨 간다.
+            foreach (var site in sites.Values) ResolveOutcome(site, result);
             var order = Mission.spots.Where(s => result.Assignments.ContainsKey(s.id)).ToList();
             foreach (var spot in order)
             {
@@ -527,11 +624,12 @@ namespace ProcurementHero.Field
                 sound?.Invoke(Sfx.Arrive);
 
                 var boxRoot = FieldArt.DepthRoot(transform, "Box", stop + new Vector2(0, 0.8f), -8f);
+                Temp(boxRoot.gameObject);
                 FieldArt.Round(boxRoot, "Box", Theme.Hex(0xD9A066), Vector2.zero, new Vector2(0.7f, 0.6f), 0);
                 FieldArt.Box(boxRoot, "Tape", Theme.Hex(0xF2D49B), Vector2.zero, new Vector2(0.7f, 0.1f), 1);
                 yield return Move(boxRoot, boxRoot.localPosition, spot.position, 0.45f, arc: 1.4f);
                 yield return Animate(0.12f, t => boxRoot.localScale = new Vector3(1 + t * 0.3f, 1 - t * 0.4f, 1));
-                Kill(boxRoot.gameObject);
+                KillTemp(boxRoot.gameObject);
                 PlaceItem(spot.id, result.Assignments[spot.id]);
                 var model = installed[spot.id].transform;
                 yield return Animate(0.25f, t => model.localScale = Vector3.one * (0.4f + 0.6f * EaseBack(t)));
@@ -546,6 +644,17 @@ namespace ProcurementHero.Field
                     foreach (var site in sites.Values)
                         if (site.target > site.level) { site.level = Mathf.Max(site.level, t); Render(site); }
                 });
+                foreach (var site in sites.Values)
+                {
+                    var r = site.reaction;
+                    if (r == null || !r.moveResident || r.spotId != spot.id || site.anchor == r.residentPosition) continue;
+                    site.moveFrom = site.resident.root.localPosition;
+                    site.moveTo = r.residentPosition;
+                    site.anchor = r.residentPosition;
+                    site.moveT = 0f;
+                    site.cheerTimer = 0f;
+                    site.reacted = true;
+                }
             }
             yield return Move(truck, truck.localPosition, new Vector2(HalfWidth + 5, TruckRoadY), 0.8f);
             // 연출 끝에도 판정 결과를 그대로 다시 적용해 건너뛰기와 같은 최종 상태가 되게 한다.
@@ -562,6 +671,7 @@ namespace ProcurementHero.Field
             {
                 float a = i / 7f * Mathf.PI * 2;
                 var s = FieldArt.Glow(transform, "Spark", Theme.WithAlpha(FieldArt.Lamp, 0.9f), at, new Vector2(0.4f, 0.4f), FieldArt.OrderMarker);
+                Temp(s.gameObject);
                 StartCoroutine(Fly(s, at, at + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 1.1f, 0.4f));
             }
         }
@@ -577,8 +687,10 @@ namespace ProcurementHero.Field
                 s.color = Theme.WithAlpha(FieldArt.Lamp, 0.9f * (1 - e));
                 yield return null;
             }
-            if (s) Kill(s.gameObject);
+            if (s) KillTemp(s.gameObject);
         }
+
+        void OnDestroy() => ClearTemps();
 
         // ───────── 도착 연출 ─────────
 
@@ -696,6 +808,16 @@ namespace ProcurementHero.Field
             if (input.sqrMagnitude > 0.01f) Face(input);
         }
 
+        /// <summary>연출용: 담당자를 한 자리에 세우고 방향을 정한다.</summary>
+        public void PlacePlayer(Vector2 at, Vector2 face)
+        {
+            if (!Player) return;
+            Player.linearVelocity = Vector2.zero;
+            Player.position = WorldPoint(at);
+            player.root.localPosition = at;
+            Face(face);
+        }
+
         public void ResetPlayer()
         {
             if (!Player) return;
@@ -715,14 +837,16 @@ namespace ProcurementHero.Field
                     s.glow.color = Theme.WithAlpha(FieldArt.Lamp, 0.35f * v);
                     break;
                 case FieldProblemKind.Heat:
-                    s.tint.color = Color.Lerp(Theme.WithAlpha(Theme.Heat, 0.32f), Theme.WithAlpha(Theme.Cool, 0.2f), v);
+                    // 그늘막으로 해결했으면 시원한 바람 대신 그늘 색으로 바뀐다.
+                    s.tint.color = Color.Lerp(Theme.WithAlpha(Theme.Heat, 0.32f),
+                        s.solvedBy == FieldItemVisual.Shade ? Theme.WithAlpha(Theme.Hex(0x7FA88A), 0.18f) : Theme.WithAlpha(Theme.Cool, 0.2f), v);
                     foreach (var w in s.waves) w.color = Theme.WithAlpha(Theme.Heat, 0.8f * (1 - v));
                     if (s.sweat) s.sweat.enabled = v < 0.5f;
                     break;
                 case FieldProblemKind.Thirst:
                     s.tint.color = Color.Lerp(Theme.WithAlpha(Theme.Danger, 0.12f), Theme.WithAlpha(Theme.Teal, 0.16f), v);
-                    s.jugWater.size = new Vector2(0.44f, Mathf.Lerp(0.12f, 0.62f, v));
-                    s.jugWater.transform.localPosition = new Vector2(0, Mathf.Lerp(-0.25f, 0f, v));
+                    // 빈 물통은 급수장치가 놓여 해결되면 치운다(물통이 저절로 차지 않는다).
+                    if (s.jug) s.jug.gameObject.SetActive(v < 0.99f);
                     break;
                 case FieldProblemKind.Power:
                     s.glow.color = Theme.WithAlpha(FieldArt.Lamp, 0.3f * v);
@@ -763,7 +887,8 @@ namespace ProcurementHero.Field
                         float ph = Mathf.Repeat(s.phase * 0.7f + i * 0.33f, 1f);
                         var basePos = s.data.zoneCenter + new Vector2(-s.data.zoneSize.x * 0.35f, s.data.zoneSize.y * (0.2f - i * 0.2f));
                         s.winds[i].transform.localPosition = basePos + new Vector2(ph * s.data.zoneSize.x * 0.6f, Mathf.Sin(ph * 6f) * 0.1f);
-                        s.winds[i].color = Theme.WithAlpha(Theme.Cool, 0.85f * s.level * Mathf.Sin(ph * Mathf.PI));
+                        float wind = s.solvedBy == FieldItemVisual.Shade ? 0f : 1f;
+                        s.winds[i].color = Theme.WithAlpha(Theme.Cool, 0.85f * s.level * wind * Mathf.Sin(ph * Mathf.PI));
                     }
                 }
                 if (s.beacon)
@@ -822,11 +947,26 @@ namespace ProcurementHero.Field
         void AnimateResident(Site s, float dt)
         {
             var r = s.resident;
-            var home = s.data.residentPosition;
+            var home = s.anchor;
             bool solved = s.level >= 0.99f;
             float t = s.phase;
             Vector2 pos = home;
             float bob = 0;
+
+            if (s.Moving)
+            {
+                // 해결한 물품 쪽으로 짧게 걸어간다. 도착하면 한 번 기뻐한다.
+                s.moveT = Mathf.Min(1f, s.moveT + dt / 0.8f);
+                pos = Vector2.Lerp(s.moveFrom, s.moveTo, Ease(s.moveT));
+                FaceRig(r, s.moveTo.x - s.moveFrom.x);
+                Walk(r, t * 10f);
+                r.visual.localPosition = Vector2.zero;
+                r.root.localPosition = pos;
+                FieldArt.SetDepth(r.root, pos.y - 0.45f);
+                PlaceTick(s, pos);
+                if (!s.Moving) s.cheerTimer = 0.8f;
+                return;
+            }
 
             if (solved && !s.reacted)
             {
@@ -872,6 +1012,8 @@ namespace ProcurementHero.Field
                     break;
                 case FieldProblemKind.Heat:
                     Stand(r);
+                    // 더위가 풀리면 부채를 내려놓는다.
+                    if (r.prop) r.prop.gameObject.SetActive(!solved);
                     if (solved)
                     {
                         // 앉아서 천천히 쉰다.
@@ -887,6 +1029,8 @@ namespace ProcurementHero.Field
                     break;
                 case FieldProblemKind.Thirst:
                     Stand(r);
+                    if (solved && s.reaction != null && Mission.Spot(s.reaction.spotId) is FieldSpotEntry dispenser)
+                        FaceRig(r, dispenser.position.x - pos.x);
                     r.armFront.localRotation = solved
                         ? Quaternion.Euler(0, 0, Mathf.Repeat(t, 3f) < 1f ? 140 : 40)
                         : Quaternion.Euler(0, 0, 120 + Mathf.Sin(t * 10f) * 15f);
@@ -919,6 +1063,14 @@ namespace ProcurementHero.Field
             r.visual.localPosition = new Vector2(0, bob);
             r.root.localPosition = pos;
             FieldArt.SetDepth(r.root, pos.y - 0.45f);
+            PlaceTick(s, pos);
+        }
+
+        /// <summary>관찰 표시는 주민이 옮겨 갔으면 주민 머리 옆을 따라간다.</summary>
+        void PlaceTick(Site s, Vector2 residentPos)
+        {
+            bool moved = s.Moving || s.anchor != s.data.residentPosition;
+            s.tick.transform.localPosition = moved ? residentPos + new Vector2(0.55f, 1.45f) : s.data.observePoint + new Vector2(0, 1.1f);
         }
 
         static void Stand(Rig r)
