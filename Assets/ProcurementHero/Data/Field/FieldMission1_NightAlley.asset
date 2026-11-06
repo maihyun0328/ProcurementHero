@@ -1,0 +1,151 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 630bdd7ab6f3d4a1eb75a134161ca921, type: 3}
+  m_Name: FieldMission1_NightAlley
+  m_EditorClassIdentifier: 
+  id: f1
+  title: "\uBC24\uAE38\uC744 \uBC1D\uD600\uB77C"
+  placeName: "\uC0C8\uBD04\uB9C8\uC744 \uC800\uB141 \uACE8\uBAA9"
+  intro: "\uC5B4\uB450\uC6B4 \uACF3\uC744 \uC0B4\uD3B4\uBCF4\uACE0 \uC870\uBA85\uC744
+    \uB193\uC744 \uC790\uB9AC\uB97C \uC815\uD574\uC694."
+  theme: 0
+  budget: 75
+  draftNumbers: 0
+  playerStart: {x: -14.5, y: -6}
+  problems:
+  - id: A
+    displayName: "\uB9C8\uC744 \uC785\uAD6C"
+    kind: 0
+    required: 1
+    mustObserve: 1
+    observePoint: {x: -11.5, y: -4.5}
+    zoneCenter: {x: -11, y: -4.6}
+    zoneSize: {x: 7, y: 4.4}
+    residentPosition: {x: -10.2, y: -3.6}
+    line: "\uC785\uAD6C\uAC00 \uC5B4\uB450\uC6CC\uC11C \uBB34\uC11C\uC6CC\uC694"
+    solvedLine: "\uC785\uAD6C\uAC00 \uD658\uD574\uC84C\uC5B4\uC694!"
+  - id: B
+    displayName: "\uACC4\uB2E8"
+    kind: 0
+    required: 1
+    mustObserve: 1
+    observePoint: {x: -0.6, y: -0.2}
+    zoneCenter: {x: -0.6, y: 0.6}
+    zoneSize: {x: 4.6, y: 5}
+    residentPosition: {x: -0.6, y: -2.2}
+    line: "\uACC4\uB2E8\uC774 \uC798 \uC548 \uBCF4\uC5EC\uC694"
+    solvedLine: "\uC774\uC81C \uACC4\uB2E8\uC774 \uC798 \uBCF4\uC5EC\uC694"
+  - id: C
+    displayName: "\uC548\uCABD \uACE8\uBAA9"
+    kind: 0
+    required: 1
+    mustObserve: 1
+    observePoint: {x: 9.5, y: 4.6}
+    zoneCenter: {x: 9.6, y: 4.8}
+    zoneSize: {x: 4.4, y: 5.4}
+    residentPosition: {x: 9.5, y: 6.2}
+    line: "\uACE8\uBAA9\uC774 \uB108\uBB34 \uAE5C\uAE5C\uD574\uC694"
+    solvedLine: "\uACE8\uBAA9\uC744 \uD3B8\uD558\uAC8C \uC9C0\uB098\uAC00\uC694"
+  - id: D
+    displayName: "\uACF5\uC6D0"
+    kind: 0
+    required: 0
+    mustObserve: 0
+    observePoint: {x: 9.5, y: -4.2}
+    zoneCenter: {x: 10.4, y: -4.8}
+    zoneSize: {x: 8, y: 4.6}
+    residentPosition: {x: 11.5, y: -5.6}
+    line: "\uACF5\uC6D0\uC774 \uC5B4\uB450\uC6CC \uC0B0\uCC45\uC744 \uBABB \uD574\uC694"
+    solvedLine: "\uBC24\uC5D0\uB3C4 \uACF5\uC6D0\uC5D0\uC11C \uC26C\uC5B4\uC694"
+  items:
+  - id: streetlamp
+    displayName: "\uAC00\uB85C\uB4F1"
+    cost: 35
+    visual: 0
+    hint: "\uB113\uAC8C \uBC1D\uD798"
+  - id: walklight
+    displayName: "\uBCF4\uD589\uB4F1"
+    cost: 20
+    visual: 1
+    hint: "\uAC00\uAE4C\uC774 \uBC1D\uD798"
+  spots:
+  - id: entrance
+    displayName: "\uC785\uAD6C \uAC08\uB9BC\uAE38"
+    position: {x: -7, y: -3}
+    options:
+    - itemId: streetlamp
+      solves:
+      - A
+      - B
+    - itemId: walklight
+      solves:
+      - A
+  - id: stairtop
+    displayName: "\uACC4\uB2E8 \uC704 \uAC08\uB9BC\uAE38"
+    position: {x: 3.2, y: 2.8}
+    options:
+    - itemId: streetlamp
+      solves:
+      - B
+      - C
+    - itemId: walklight
+      solves:
+      - B
+  - id: park
+    displayName: "\uACF5\uC6D0 \uAC00\uC7A5\uC790\uB9AC"
+    position: {x: 5.6, y: -3.2}
+    options:
+    - itemId: streetlamp
+      solves:
+      - D
+    - itemId: walklight
+      solves:
+      - D
+  obstacles:
+  - kind: 0
+    center: {x: -12, y: 3}
+    size: {x: 6, y: 5}
+  - kind: 0
+    center: {x: -3, y: 6}
+    size: {x: 6, y: 3.5}
+  - kind: 0
+    center: {x: 4, y: 6.5}
+    size: {x: 5, y: 2.5}
+  - kind: 0
+    center: {x: 14, y: 5}
+    size: {x: 4, y: 5}
+  - kind: 1
+    center: {x: -4, y: 0}
+    size: {x: 2.5, y: 3.5}
+  - kind: 1
+    center: {x: 3, y: -0.5}
+    size: {x: 3, y: 2.5}
+  - kind: 4
+    center: {x: 13.6, y: -2.6}
+    size: {x: 1.2, y: 1.2}
+  - kind: 4
+    center: {x: 7.4, y: -6.6}
+    size: {x: 1.2, y: 1.2}
+  - kind: 2
+    center: {x: 14.5, y: -5.5}
+    size: {x: 0.5, y: 3.5}
+  paths:
+  - center: {x: 0, y: -5}
+    size: {x: 32, y: 2.6}
+  - center: {x: -7, y: -1.5}
+    size: {x: 2.4, y: 7}
+  - center: {x: -0.6, y: 0.4}
+    size: {x: 3.6, y: 4.2}
+  - center: {x: 3.5, y: 2.8}
+    size: {x: 21, y: 2.2}
+  - center: {x: 9.6, y: 5}
+    size: {x: 2.6, y: 5}

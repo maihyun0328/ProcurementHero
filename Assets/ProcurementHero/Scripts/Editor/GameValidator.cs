@@ -136,8 +136,8 @@ namespace ProcurementHero.EditorTools
                 return;
             }
             var scenes = EditorBuildSettings.scenes;
-            if (scenes.Length == 0 || scenes[0].path != GameSetup.ScenePath || !scenes[0].enabled)
-                report.Errors.Add("Build Settings 0번 씬이 게임 씬이 아닙니다.");
+            if (!scenes.Any(s => s.path == GameSetup.ScenePath))
+                report.Errors.Add("카드 비교 씬이 빌드 목록에 없습니다.");
 
             // 열려 있는 씬을 건드리지 않도록 YAML에서 참조 GUID만 확인한다.
             string yaml = File.ReadAllText(GameSetup.ScenePath);
@@ -162,6 +162,15 @@ namespace ProcurementHero.EditorTools
                 report.Errors.Add("동적 폰트 에셋에 원본 폰트 파일 참조가 없습니다.");
 
             var text = new System.Text.StringBuilder();
+            var fieldDb = AssetDatabase.LoadAssetAtPath<ProcurementHero.Field.FieldDatabase>(FieldSetup.DatabasePath);
+            if (fieldDb)
+                foreach (var fm in fieldDb.missions.Where(x => x))
+                {
+                    text.Append(fm.title).Append(fm.placeName).Append(fm.intro);
+                    foreach (var p in fm.problems) text.Append(p.displayName).Append(p.line).Append(p.solvedLine);
+                    foreach (var i in fm.items) text.Append(i.displayName).Append(i.hint);
+                    foreach (var s in fm.spots) text.Append(s.displayName);
+                }
             foreach (var m in database.missions.Where(m => m))
             {
                 text.Append(m.title).Append(m.facilityName).Append(m.request).Append(m.itemNameA).Append(m.itemNameB)

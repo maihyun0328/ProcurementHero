@@ -34,11 +34,16 @@ namespace ProcurementHero.EditorTools
             if (!validation.Ok)
                 return "검증 오류가 있어 빌드를 멈췄습니다.\n" + validation;
 
+            // 빌드 목록의 첫 번째(시작) 씬 하나만 빌드한다. 현장 수첩 씬을 시작 씬으로 바꿨다면 그 씬이다.
             var registered = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
-            if (registered.Length == 0 || registered[0] != GameSetup.ScenePath)
-                return "시작 씬이 등록되지 않았습니다. Setup Game을 먼저 실행하세요.";
-            // 게임은 씬 하나로 동작한다. Build Settings의 다른 씬(예: 템플릿 SampleScene)은 목록에 남겨 두고 빌드에서만 뺀다.
-            var scenes = new[] { GameSetup.ScenePath };
+            if (registered.Length == 0 || (registered[0] != GameSetup.ScenePath && registered[0] != FieldSetup.ScenePath))
+                return "시작 씬이 등록되지 않았습니다. Setup Game 또는 Setup Field Notebook을 먼저 실행하세요.";
+            if (registered[0] == FieldSetup.ScenePath)
+            {
+                var field = FieldValidator.Run();
+                if (!field.Ok) return "현장 수첩 검증 오류가 있어 빌드를 멈췄습니다.\n" + field;
+            }
+            var scenes = new[] { registered[0] };
 
             string licensePath = Path.GetFullPath(GameSetup.FontFolder + "/OFL.txt");
             if (!File.Exists(licensePath))

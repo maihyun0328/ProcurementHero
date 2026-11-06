@@ -305,10 +305,16 @@ namespace ProcurementHero.EditorTools
 
         static void EnsureBuildSettings(List<string> log)
         {
-            var scenes = EditorBuildSettings.scenes.Where(s => s.path != ScenePath).ToList();
-            scenes.Insert(0, new EditorBuildSettingsScene(ScenePath, true));
+            // 이미 등록돼 있으면 순서를 바꾸지 않는다(현장 수첩 씬이 시작 씬일 수 있다).
+            var scenes = EditorBuildSettings.scenes.ToList();
+            if (scenes.Any(s => s.path == ScenePath))
+            {
+                log.Add("○ 카드 비교 씬이 이미 빌드 목록에 있음 (순서 유지)");
+                return;
+            }
+            scenes.Add(new EditorBuildSettingsScene(ScenePath, true));
             EditorBuildSettings.scenes = scenes.ToArray();
-            log.Add("○ 시작 씬 등록 (Build Settings 0번)");
+            log.Add("○ 카드 비교 씬을 빌드 목록에 등록");
         }
 
         static void EnsurePlayerSettings(List<string> log)

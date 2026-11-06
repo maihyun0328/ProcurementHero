@@ -10,7 +10,15 @@ namespace ProcurementHero
         Arrive,
         Success,
         Partial,
-        Fail
+        Fail,
+        // 현장 수첩 버전
+        Observe,
+        NotebookOpen,
+        Check,
+        Uncheck,
+        Confirm,
+        Install,
+        Stamp
     }
 
     /// <summary>
@@ -42,7 +50,14 @@ namespace ProcurementHero
                     Tone("arrive", new[] { 392f, 523f }, 0.1f, 0.3f),
                     Tone("success", new[] { 523f, 659f, 784f, 1047f }, 0.13f, 0.4f),
                     Tone("partial", new[] { 523f, 587f, 523f }, 0.13f, 0.35f),
-                    Tone("fail", new[] { 494f, 440f, 349f }, 0.16f, 0.35f)
+                    Tone("fail", new[] { 494f, 440f, 349f }, 0.16f, 0.35f),
+                    Tone("observe", new[] { 880f, 1175f }, 0.06f, 0.3f),
+                    Tone("notebook", new[] { 330f, 392f }, 0.07f, 0.25f),
+                    Tone("check", new[] { 988f }, 0.07f, 0.32f),
+                    Tone("uncheck", new[] { 587f, 440f }, 0.06f, 0.28f),
+                    Tone("confirm", new[] { 523f, 784f, 1047f }, 0.1f, 0.38f),
+                    Tone("install", new[] { 392f, 587f }, 0.08f, 0.32f),
+                    Tone("stamp", new[] { 196f, 262f, 392f }, 0.12f, 0.45f)
                 };
                 bgmSource.clip = Melody();
                 bgmSource.Play();

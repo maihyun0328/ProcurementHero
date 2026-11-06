@@ -1,0 +1,139 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 630bdd7ab6f3d4a1eb75a134161ca921, type: 3}
+  m_Name: FieldMission2_Clinic
+  m_EditorClassIdentifier: 
+  id: f2
+  title: "\uC2DC\uC6D0\uD55C \uBCF4\uAC74\uC18C"
+  placeName: "\uC0C8\uBD04\uBCF4\uAC74\uC18C"
+  intro: "\uB354\uC6B4 \uACF3\uACFC \uBB3C\uC774 \uBAA8\uC790\uB780 \uACF3\uC744
+    \uCC3E\uC544 \uC7A5\uCE58\uB97C \uB193\uC744 \uC790\uB9AC\uB97C \uC815\uD574\uC694."
+  theme: 1
+  budget: 85
+  draftNumbers: 1
+  playerStart: {x: 0, y: -7}
+  problems:
+  - id: H
+    displayName: "\uB300\uAE30\uC2E4"
+    kind: 1
+    required: 1
+    mustObserve: 1
+    observePoint: {x: -5, y: 3.2}
+    zoneCenter: {x: -5.6, y: 3.6}
+    zoneSize: {x: 8.2, y: 6.4}
+    residentPosition: {x: -6.4, y: 4.8}
+    line: "\uB300\uAE30\uC2E4\uC774 \uB108\uBB34 \uB354\uC6CC\uC694"
+    solvedLine: "\uB300\uAE30\uC2E4\uC774 \uC2DC\uC6D0\uD574\uC694"
+  - id: W
+    displayName: "\uBCF5\uB3C4 \uC27C\uD130"
+    kind: 2
+    required: 1
+    mustObserve: 1
+    observePoint: {x: 6, y: 4.2}
+    zoneCenter: {x: 6, y: 4.4}
+    zoneSize: {x: 7.4, y: 5}
+    residentPosition: {x: 7.2, y: 5.4}
+    line: "\uB9C8\uC2E4 \uBB3C\uC774 \uBD80\uC871\uD574\uC694"
+    solvedLine: "\uC2DC\uC6D0\uD55C \uBB3C\uC744 \uB9C8\uC154\uC694"
+  - id: O
+    displayName: "\uBC14\uAE65 \uB300\uAE30 \uC904"
+    kind: 1
+    required: 0
+    mustObserve: 0
+    observePoint: {x: -4, y: -4}
+    zoneCenter: {x: -4.2, y: -4.2}
+    zoneSize: {x: 8, y: 4.4}
+    residentPosition: {x: -5.6, y: -4}
+    line: "\uBC16\uC5D0\uC11C \uAE30\uB2E4\uB9AC\uAE30 \uD798\uB4E4\uC5B4\uC694"
+    solvedLine: "\uADF8\uB298\uC5D0\uC11C \uD3B8\uD788 \uAE30\uB2E4\uB824\uC694"
+  items:
+  - id: aircon
+    displayName: "\uB0C9\uBC29\uC7A5\uCE58"
+    cost: 40
+    visual: 2
+    hint: "\uC2DC\uC6D0\uD55C \uBC14\uB78C"
+  - id: water
+    displayName: "\uAE09\uC218\uC7A5\uCE58"
+    cost: 25
+    visual: 3
+    hint: "\uB9C8\uC2E4 \uBB3C"
+  - id: shade
+    displayName: "\uADF8\uB298\uB9C9"
+    cost: 20
+    visual: 4
+    hint: "\uD587\uBE5B \uAC00\uB9BC"
+  spots:
+  - id: waiting
+    displayName: "\uB300\uAE30\uC2E4 \uC548\uCABD"
+    position: {x: -8, y: 6}
+    options:
+    - itemId: aircon
+      solves:
+      - H
+    - itemId: water
+      solves:
+      - W
+  - id: corridor
+    displayName: "\uBCF5\uB3C4 \uB05D"
+    position: {x: 8.4, y: 1.6}
+    options:
+    - itemId: aircon
+      solves:
+      - H
+    - itemId: water
+      solves:
+      - W
+  - id: yard
+    displayName: "\uD604\uAD00 \uC55E\uB9C8\uB2F9"
+    position: {x: 2.6, y: -3}
+    options:
+    - itemId: aircon
+      solves:
+      - O
+    - itemId: shade
+      solves:
+      - O
+  obstacles:
+  - kind: 1
+    center: {x: 0, y: 7.3}
+    size: {x: 20.6, y: 0.6}
+  - kind: 1
+    center: {x: -10, y: 3.5}
+    size: {x: 0.6, y: 7.6}
+  - kind: 1
+    center: {x: 10, y: 3.5}
+    size: {x: 0.6, y: 7.6}
+  - kind: 1
+    center: {x: -5.75, y: 0}
+    size: {x: 8.5, y: 0.6}
+  - kind: 1
+    center: {x: 5.75, y: 0}
+    size: {x: 8.5, y: 0.6}
+  - kind: 1
+    center: {x: 2, y: 4.9}
+    size: {x: 0.6, y: 4.2}
+  - kind: 4
+    center: {x: 9, y: -5}
+    size: {x: 1.4, y: 1.4}
+  - kind: 4
+    center: {x: -13, y: -2}
+    size: {x: 1.4, y: 1.4}
+  - kind: 2
+    center: {x: -14, y: 4}
+    size: {x: 0.5, y: 6}
+  paths:
+  - center: {x: 0, y: -4}
+    size: {x: 3, y: 8}
+  - center: {x: 0, y: -6.5}
+    size: {x: 32, y: 2.2}
+  - center: {x: 0, y: 3.5}
+    size: {x: 19.4, y: 7}

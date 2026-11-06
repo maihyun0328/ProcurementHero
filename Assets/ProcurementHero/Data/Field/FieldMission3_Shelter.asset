@@ -1,0 +1,129 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 630bdd7ab6f3d4a1eb75a134161ca921, type: 3}
+  m_Name: FieldMission3_Shelter
+  m_EditorClassIdentifier: 
+  id: f3
+  title: "\uBE44 \uC624\uAE30 \uC804 \uB300\uD53C\uC18C"
+  placeName: "\uC0C8\uBD04\uB300\uD53C\uC18C"
+  intro: "\uAEBC\uC9C4 \uBD88\uACFC \uBB3C\uC774 \uACE0\uC778 \uAE38\uC744 \uC0B4\uD3B4\uBCF4\uACE0
+    \uC7A5\uCE58\uB97C \uB193\uC744 \uC790\uB9AC\uB97C \uC815\uD574\uC694."
+  theme: 2
+  budget: 90
+  draftNumbers: 1
+  playerStart: {x: -14, y: -6.5}
+  problems:
+  - id: P
+    displayName: "\uB300\uD53C\uC18C \uC804\uB825"
+    kind: 3
+    required: 1
+    mustObserve: 1
+    observePoint: {x: 0, y: 2.2}
+    zoneCenter: {x: 0, y: 5}
+    zoneSize: {x: 11, y: 5}
+    residentPosition: {x: -2, y: 2.2}
+    line: "\uC804\uC6D0\uC774 \uD544\uC694\uD574\uC694"
+    solvedLine: "\uBD88\uC774 \uCF1C\uC838\uC11C \uC548\uC2EC\uB3FC\uC694"
+  - id: R
+    displayName: "\uC815\uBB38 \uC9C4\uC785\uB85C"
+    kind: 4
+    required: 1
+    mustObserve: 1
+    observePoint: {x: 0, y: -2}
+    zoneCenter: {x: 0, y: -2.6}
+    zoneSize: {x: 4.4, y: 6}
+    residentPosition: {x: 1.6, y: -0.6}
+    line: "\uBB3C\uC774 \uBE60\uC9C0\uC9C0 \uC54A\uC544\uC694"
+    solvedLine: "\uC815\uBB38 \uAE38\uB85C \uC548\uC804\uD558\uAC8C \uB4E4\uC5B4\uAC00\uC694"
+  - id: B
+    displayName: "\uBCF4\uC870 \uD1B5\uB85C"
+    kind: 4
+    required: 0
+    mustObserve: 0
+    observePoint: {x: 10, y: 0.6}
+    zoneCenter: {x: 10, y: -0.4}
+    zoneSize: {x: 4, y: 7}
+    residentPosition: {x: 11.4, y: 1.6}
+    line: "\uC606\uAE38\uB3C4 \uBB3C\uC5D0 \uC7A0\uACBC\uC5B4\uC694"
+    solvedLine: "\uC606\uAE38\uB85C\uB3C4 \uB2E4\uB2D0 \uC218 \uC788\uC5B4\uC694"
+  items:
+  - id: generator
+    displayName: "\uBE44\uC0C1\uC804\uC6D0"
+    cost: 40
+    visual: 5
+    hint: "\uC804\uAE30 \uACF5\uAE09"
+  - id: pump
+    displayName: "\uBC30\uC218\uD38C\uD504"
+    cost: 30
+    visual: 6
+    hint: "\uBB3C \uBE7C\uAE30"
+  - id: sandbags
+    displayName: "\uBAA8\uB798\uC8FC\uBA38\uB2C8"
+    cost: 15
+    visual: 7
+    hint: "\uBB3C\uB9C9\uC774"
+  spots:
+  - id: side
+    displayName: "\uB300\uD53C\uC18C \uC606"
+    position: {x: -7, y: 4.5}
+    options:
+    - itemId: generator
+      solves:
+      - P
+  - id: gate
+    displayName: "\uC815\uBB38 \uC9C4\uC785\uB85C"
+    position: {x: -2.4, y: -5.4}
+    options:
+    - itemId: pump
+      solves:
+      - R
+  - id: detour
+    displayName: "\uBCF4\uC870 \uD1B5\uB85C \uC785\uAD6C"
+    position: {x: 7.6, y: -3.4}
+    options:
+    - itemId: pump
+      solves:
+      - B
+    - itemId: sandbags
+      solves:
+      - B
+  obstacles:
+  - kind: 0
+    center: {x: 0, y: 5}
+    size: {x: 10, y: 4}
+  - kind: 0
+    center: {x: -11.5, y: -2.5}
+    size: {x: 5, y: 4}
+  - kind: 0
+    center: {x: 12.5, y: 6}
+    size: {x: 5, y: 3}
+  - kind: 3
+    center: {x: -3.4, y: -2.6}
+    size: {x: 2, y: 1.4}
+  - kind: 3
+    center: {x: 4, y: -1.2}
+    size: {x: 1.8, y: 1.2}
+  - kind: 4
+    center: {x: 6, y: 2.6}
+    size: {x: 1.2, y: 1.2}
+  - kind: 2
+    center: {x: 13.6, y: -1}
+    size: {x: 0.5, y: 5}
+  paths:
+  - center: {x: 0, y: -3.2}
+    size: {x: 3.2, y: 10}
+  - center: {x: 0, y: -6.6}
+    size: {x: 32, y: 2.2}
+  - center: {x: 10, y: -1.6}
+    size: {x: 3, y: 9}
+  - center: {x: 0, y: 2}
+    size: {x: 14, y: 1.6}
