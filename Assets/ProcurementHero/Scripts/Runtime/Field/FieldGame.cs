@@ -89,12 +89,7 @@ namespace ProcurementHero.Field
             Time.timeScale = 1f;
             Progress = new FieldProgress(database.missions.Count);
             cam = Camera.main;
-            if (cam)
-            {
-                cam.orthographic = true;
-                cam.orthographicSize = 9f;
-                cam.transform.position = new Vector3(0, 0.6f, -10);
-            }
+            ResetCamera();
 
             sound = gameObject.AddComponent<AudioService>();
             sound.Init();
@@ -287,9 +282,19 @@ namespace ProcurementHero.Field
 
         // ───────── 미션 ─────────
 
+        /// <summary>현장 카메라 기본 구도(엔딩에서 잠깐 다가갔다가 화면이 바뀌면 되돌린다).</summary>
+        void ResetCamera()
+        {
+            if (!cam) return;
+            cam.orthographic = true;
+            cam.orthographicSize = 9f;
+            cam.transform.position = new Vector3(0, 0.6f, -10);
+        }
+
         void BeginScreen(FieldState next)
         {
             StopAllCoroutines();
+            ResetCamera();
             CloseAllModals();
             SetPaused(false);
             UIKit.Clear(screenRoot);

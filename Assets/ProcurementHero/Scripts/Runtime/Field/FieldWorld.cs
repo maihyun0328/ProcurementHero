@@ -455,6 +455,24 @@ namespace ProcurementHero.Field
         public string SolvedLine(FieldProblemEntry p) =>
             sites.TryGetValue(p.id, out var s) && s.reaction != null && !string.IsNullOrEmpty(s.reaction.line) ? s.reaction.line : p.solvedLine;
 
+        /// <summary>
+        /// 엔딩용: 이미 정착한 주민을 원래 대기 자리에서 정착 자리까지 다시 걷게 한다(반응 데이터의 이동 그대로).
+        /// 옮겨 가지 않는 주민은 해결 순간처럼 한 번 기뻐한다. 해결되지 않은 주민에게는 아무것도 하지 않는다.
+        /// </summary>
+        public void ReplayResolution(string problemId)
+        {
+            if (!sites.TryGetValue(problemId, out var s) || s.level < 0.99f) return;
+            if (s.anchor != s.data.residentPosition)
+            {
+                s.moveFrom = s.data.residentPosition;
+                s.moveTo = s.anchor;
+                s.moveT = 0f;
+                s.cheerTimer = 0f;
+                s.resident.root.localPosition = s.moveFrom;
+            }
+            else s.cheerTimer = 0.8f;
+        }
+
         /// <summary>남아 있는 임시 연출 오브젝트 수(검증용).</summary>
         public int TempObjectCount => temps.Count(t => t);
 
