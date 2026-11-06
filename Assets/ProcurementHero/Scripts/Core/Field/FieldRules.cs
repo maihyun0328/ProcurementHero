@@ -216,6 +216,15 @@ namespace ProcurementHero.Core.Field
             return ConfirmBlock.None;
         }
 
+        /// <summary>
+        /// 수첩 지도에 '해결 예상'으로 보여 줄 문제. 관찰한 문제만 미리 보여 주고,
+        /// 아직 조사하지 않은 구역은 계획이 해결하더라도 숨긴다(판정 자체는 바꾸지 않는다).
+        /// </summary>
+        public static HashSet<string> PreviewSolved(FieldEvaluation evaluation, ICollection<string> observed)
+        {
+            return new HashSet<string>(evaluation.Solved.Where(observed.Contains));
+        }
+
         public static int MissingObservations(FieldMissionSpec mission, ICollection<string> observed) =>
             mission.Problems.Count(p => p.MustObserve && !observed.Contains(p.Id));
 

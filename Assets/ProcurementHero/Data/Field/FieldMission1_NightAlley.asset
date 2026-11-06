@@ -17,6 +17,7 @@ MonoBehaviour:
   placeName: "\uC0C8\uBD04\uB9C8\uC744 \uC800\uB141 \uACE8\uBAA9"
   intro: "\uC5B4\uB450\uC6B4 \uACF3\uC744 \uC0B4\uD3B4\uBCF4\uACE0 \uC870\uBA85\uC744
     \uB193\uC744 \uC790\uB9AC\uB97C \uC815\uD574\uC694."
+  arrivalLine: "\uC5B4\uB514\uAC00 \uBD88\uD3B8\uD55C\uC9C0 \uC0B4\uD3B4\uBCFC\uAE4C?"
   theme: 0
   budget: 75
   draftNumbers: 0
@@ -33,6 +34,7 @@ MonoBehaviour:
     residentPosition: {x: -10.2, y: -3.6}
     line: "\uC785\uAD6C\uAC00 \uC5B4\uB450\uC6CC\uC11C \uBB34\uC11C\uC6CC\uC694"
     solvedLine: "\uC785\uAD6C\uAC00 \uD658\uD574\uC84C\uC5B4\uC694!"
+    memo: "\uC785\uAD6C\uAC00 \uAE5C\uAE5C\uD568"
   - id: B
     displayName: "\uACC4\uB2E8"
     kind: 0
@@ -44,6 +46,7 @@ MonoBehaviour:
     residentPosition: {x: -0.6, y: -2.2}
     line: "\uACC4\uB2E8\uC774 \uC798 \uC548 \uBCF4\uC5EC\uC694"
     solvedLine: "\uC774\uC81C \uACC4\uB2E8\uC774 \uC798 \uBCF4\uC5EC\uC694"
+    memo: "\uACC4\uB2E8 \uC55E\uC5D0\uC11C \uBC1C\uC744 \uBA48\uCDA4"
   - id: C
     displayName: "\uC548\uCABD \uACE8\uBAA9"
     kind: 0
@@ -55,6 +58,7 @@ MonoBehaviour:
     residentPosition: {x: 9.5, y: 6.2}
     line: "\uACE8\uBAA9\uC774 \uB108\uBB34 \uAE5C\uAE5C\uD574\uC694"
     solvedLine: "\uACE8\uBAA9\uC744 \uD3B8\uD558\uAC8C \uC9C0\uB098\uAC00\uC694"
+    memo: "\uACE8\uBAA9 \uC548\uC774 \uC5B4\uB450\uC6C0"
   - id: D
     displayName: "\uACF5\uC6D0"
     kind: 0
@@ -66,6 +70,7 @@ MonoBehaviour:
     residentPosition: {x: 11.5, y: -5.6}
     line: "\uACF5\uC6D0\uC774 \uC5B4\uB450\uC6CC \uC0B0\uCC45\uC744 \uBABB \uD574\uC694"
     solvedLine: "\uBC24\uC5D0\uB3C4 \uACF5\uC6D0\uC5D0\uC11C \uC26C\uC5B4\uC694"
+    memo: "\uACF5\uC6D0 \uC0B0\uCC45\uAE38\uC774 \uC5B4\uB450\uC6C0"
   items:
   - id: streetlamp
     displayName: "\uAC00\uB85C\uB4F1"
@@ -114,30 +119,39 @@ MonoBehaviour:
   - kind: 0
     center: {x: -12, y: 3}
     size: {x: 6, y: 5}
+    clearedBy: 
   - kind: 0
     center: {x: -3, y: 6}
     size: {x: 6, y: 3.5}
+    clearedBy: 
   - kind: 0
     center: {x: 4, y: 6.5}
     size: {x: 5, y: 2.5}
+    clearedBy: 
   - kind: 0
     center: {x: 14, y: 5}
     size: {x: 4, y: 5}
+    clearedBy: 
   - kind: 1
     center: {x: -4, y: 0}
     size: {x: 2.5, y: 3.5}
+    clearedBy: 
   - kind: 1
     center: {x: 3, y: -0.5}
     size: {x: 3, y: 2.5}
+    clearedBy: 
   - kind: 4
     center: {x: 13.6, y: -2.6}
     size: {x: 1.2, y: 1.2}
+    clearedBy: 
   - kind: 4
     center: {x: 7.4, y: -6.6}
     size: {x: 1.2, y: 1.2}
+    clearedBy: 
   - kind: 2
     center: {x: 14.5, y: -5.5}
     size: {x: 0.5, y: 3.5}
+    clearedBy: 
   paths:
   - center: {x: 0, y: -5}
     size: {x: 32, y: 2.6}

@@ -17,6 +17,8 @@ MonoBehaviour:
   placeName: "\uC0C8\uBD04\uBCF4\uAC74\uC18C"
   intro: "\uB354\uC6B4 \uACF3\uACFC \uBB3C\uC774 \uBAA8\uC790\uB780 \uACF3\uC744
     \uCC3E\uC544 \uC7A5\uCE58\uB97C \uB193\uC744 \uC790\uB9AC\uB97C \uC815\uD574\uC694."
+  arrivalLine: "\uC774\uBC88\uC5D0\uB294 \uBCF4\uAC74\uC18C\uB97C \uD655\uC778\uD574
+    \uBCF4\uC790."
   theme: 1
   budget: 85
   draftNumbers: 1
@@ -33,6 +35,7 @@ MonoBehaviour:
     residentPosition: {x: -6.4, y: 4.8}
     line: "\uB300\uAE30\uC2E4\uC774 \uB108\uBB34 \uB354\uC6CC\uC694"
     solvedLine: "\uB300\uAE30\uC2E4\uC774 \uC2DC\uC6D0\uD574\uC694"
+    memo: "\uB300\uAE30\uC2E4\uC774 \uB354\uC6CC \uBD80\uCC44\uC9C8"
   - id: W
     displayName: "\uBCF5\uB3C4 \uC27C\uD130"
     kind: 2
@@ -44,8 +47,9 @@ MonoBehaviour:
     residentPosition: {x: 7.2, y: 5.4}
     line: "\uB9C8\uC2E4 \uBB3C\uC774 \uBD80\uC871\uD574\uC694"
     solvedLine: "\uC2DC\uC6D0\uD55C \uBB3C\uC744 \uB9C8\uC154\uC694"
+    memo: "\uBCF5\uB3C4 \uC27C\uD130 \uBB3C\uD1B5\uC774 \uBE54"
   - id: O
-    displayName: "\uBC14\uAE65 \uB300\uAE30 \uC904"
+    displayName: "\uBC14\uAE65 \uC904"
     kind: 1
     required: 0
     mustObserve: 0
@@ -55,12 +59,13 @@ MonoBehaviour:
     residentPosition: {x: -5.6, y: -4}
     line: "\uBC16\uC5D0\uC11C \uAE30\uB2E4\uB9AC\uAE30 \uD798\uB4E4\uC5B4\uC694"
     solvedLine: "\uADF8\uB298\uC5D0\uC11C \uD3B8\uD788 \uAE30\uB2E4\uB824\uC694"
+    memo: "\uD604\uAD00 \uBC16 \uC904 \xB7 \uB664\uC57D\uBCD5"
   items:
   - id: aircon
     displayName: "\uB0C9\uBC29\uC7A5\uCE58"
     cost: 40
     visual: 2
-    hint: "\uC2DC\uC6D0\uD55C \uBC14\uB78C"
+    hint: "\uC2E4\uB0B4 \uB0C9\uBC29 \xB7 \uC2E4\uC678 \uBD88\uAC00"
   - id: water
     displayName: "\uAE09\uC218\uC7A5\uCE58"
     cost: 25
@@ -70,7 +75,7 @@ MonoBehaviour:
     displayName: "\uADF8\uB298\uB9C9"
     cost: 20
     visual: 4
-    hint: "\uD587\uBE5B \uAC00\uB9BC"
+    hint: "\uC2E4\uC678 \uD587\uBE5B \uAC00\uB9BC"
   spots:
   - id: waiting
     displayName: "\uB300\uAE30\uC2E4 \uC548\uCABD"
@@ -79,16 +84,21 @@ MonoBehaviour:
     - itemId: aircon
       solves:
       - H
-    - itemId: water
-      solves:
-      - W
-  - id: corridor
-    displayName: "\uBCF5\uB3C4 \uB05D"
-    position: {x: 8.4, y: 1.6}
+  - id: hall
+    displayName: "\uD604\uAD00 \uC548\uCABD"
+    position: {x: 0, y: 1.4}
     options:
     - itemId: aircon
       solves:
       - H
+      - O
+    - itemId: water
+      solves:
+      - W
+  - id: corridor
+    displayName: "\uBCF5\uB3C4 \uC27C\uD130"
+    position: {x: 8.4, y: 1.6}
+    options:
     - itemId: water
       solves:
       - W
@@ -96,9 +106,6 @@ MonoBehaviour:
     displayName: "\uD604\uAD00 \uC55E\uB9C8\uB2F9"
     position: {x: 2.6, y: -3}
     options:
-    - itemId: aircon
-      solves:
-      - O
     - itemId: shade
       solves:
       - O
@@ -106,30 +113,39 @@ MonoBehaviour:
   - kind: 1
     center: {x: 0, y: 7.3}
     size: {x: 20.6, y: 0.6}
+    clearedBy: 
   - kind: 1
     center: {x: -10, y: 3.5}
     size: {x: 0.6, y: 7.6}
+    clearedBy: 
   - kind: 1
     center: {x: 10, y: 3.5}
     size: {x: 0.6, y: 7.6}
+    clearedBy: 
   - kind: 1
     center: {x: -5.75, y: 0}
     size: {x: 8.5, y: 0.6}
+    clearedBy: 
   - kind: 1
     center: {x: 5.75, y: 0}
     size: {x: 8.5, y: 0.6}
+    clearedBy: 
   - kind: 1
     center: {x: 2, y: 4.9}
     size: {x: 0.6, y: 4.2}
+    clearedBy: 
   - kind: 4
     center: {x: 9, y: -5}
     size: {x: 1.4, y: 1.4}
+    clearedBy: 
   - kind: 4
     center: {x: -13, y: -2}
     size: {x: 1.4, y: 1.4}
+    clearedBy: 
   - kind: 2
     center: {x: -14, y: 4}
     size: {x: 0.5, y: 6}
+    clearedBy: 
   paths:
   - center: {x: 0, y: -4}
     size: {x: 3, y: 8}

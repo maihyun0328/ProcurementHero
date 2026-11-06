@@ -41,6 +41,38 @@ namespace ProcurementHero.EditorTools
             EditorUtility.DisplayDialog("Procurement Hero", string.Join("\n", log), "확인");
         }
 
+        [MenuItem("Tools/Procurement Hero/Reset Field Mission Data To Defaults", priority = 23)]
+        static void ResetMenu()
+        {
+            if (!EditorUtility.DisplayDialog("Procurement Hero", "현장 미션 3개를 기본 데이터(DefaultFieldData)로 덮어씁니다.\nInspector에서 고친 값이 사라집니다. 계속할까요?", "덮어쓰기", "취소"))
+                return;
+            var log = new List<string>();
+            ResetMissionData(log);
+            EditorUtility.DisplayDialog("Procurement Hero", string.Join("\n", log), "확인");
+        }
+
+        /// <summary>미션 에셋을 기본 데이터로 덮어쓴다(GUID와 파일 이름은 그대로). 명시적으로 실행할 때만 쓴다.</summary>
+        public static void ResetMissionData(List<string> log)
+        {
+            foreach (var seed in DefaultFieldData.Missions())
+            {
+                string path = $"{DataFolder}/{seed.AssetName}.asset";
+                var existing = AssetDatabase.LoadAssetAtPath<FieldMissionData>(path);
+                if (!existing)
+                {
+                    log.Add("× 에셋이 없습니다(Setup Field Notebook 먼저): " + path);
+                    Object.DestroyImmediate(seed.Data);
+                    continue;
+                }
+                EditorUtility.CopySerialized(seed.Data, existing);
+                existing.name = seed.AssetName;
+                EditorUtility.SetDirty(existing);
+                Object.DestroyImmediate(seed.Data);
+                log.Add("○ 기본 데이터로 갱신: " + path);
+            }
+            AssetDatabase.SaveAssets();
+        }
+
         public static bool Run(List<string> log, bool interactive)
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)

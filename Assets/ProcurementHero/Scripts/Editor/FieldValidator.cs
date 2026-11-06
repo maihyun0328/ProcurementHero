@@ -51,6 +51,8 @@ namespace ProcurementHero.EditorTools
                 Unique(tag + " 문제", m.problems.Select(p => p.id), report);
                 Unique(tag + " 물품", m.items.Select(i => i.id), report);
                 Unique(tag + " 지점", m.spots.Select(s => s.id), report);
+                foreach (var o in m.obstacles.Where(o => !string.IsNullOrEmpty(o.clearedBy)))
+                    if (m.Problem(o.clearedBy) == null) report.Errors.Add($"{tag} 장애물이 없는 문제 '{o.clearedBy}'로 사라지도록 되어 있습니다.");
                 foreach (var i in m.items)
                     if (i.cost <= 0) report.Errors.Add($"{tag} 물품 '{i.displayName}' 비용이 0 이하입니다.");
                 foreach (var s in m.spots)

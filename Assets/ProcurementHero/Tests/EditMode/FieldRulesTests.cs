@@ -186,6 +186,17 @@ namespace ProcurementHero.Tests
         }
 
         [Test]
+        public void PreviewHidesUnobservedZones()
+        {
+            var m = Mission1();
+            var e = FieldRules.Evaluate(m, Plan(m, ("entrance", "streetlamp"), ("stairtop", "streetlamp")));
+            CollectionAssert.AreEquivalent(new[] { "A", "B", "C" }, e.Solved, "판정은 그대로");
+            CollectionAssert.IsEmpty(FieldRules.PreviewSolved(e, new string[0]), "관찰 전에는 해결 예상을 보여 주지 않는다");
+            CollectionAssert.AreEquivalent(new[] { "A" }, FieldRules.PreviewSolved(e, new[] { "A" }));
+            CollectionAssert.AreEquivalent(new[] { "A", "B", "C" }, FieldRules.PreviewSolved(e, new[] { "A", "B", "C", "D" }));
+        }
+
+        [Test]
         public void StarRules()
         {
             Assert.AreEqual(0, FieldRules.Stars(0, 3, 1, 1));

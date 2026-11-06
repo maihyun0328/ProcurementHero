@@ -33,7 +33,8 @@ namespace ProcurementHero.Field
         Shade,
         Generator,
         Pump,
-        Sandbags
+        Sandbags,
+        PortableGenerator
     }
 
     public enum FieldObstacleKind
@@ -59,6 +60,7 @@ namespace ProcurementHero.Field
         public Vector2 residentPosition;
         [TextArea(1, 2)] public string line;
         [TextArea(1, 2)] public string solvedLine;
+        [Tooltip("관찰 후 수첩에 남는 한 줄 메모")] public string memo;
     }
 
     [Serializable]
@@ -93,6 +95,7 @@ namespace ProcurementHero.Field
         public FieldObstacleKind kind;
         public Vector2 center;
         public Vector2 size = Vector2.one;
+        [Tooltip("이 문제가 해결되면 사라지는 장애물(예: 배수 후 물웅덩이). 비우면 항상 남는다.")] public string clearedBy;
     }
 
     [Serializable]
@@ -110,6 +113,7 @@ namespace ProcurementHero.Field
         public string title;
         public string placeName;
         [TextArea(1, 2)] public string intro;
+        [Tooltip("현장 도착 때 담당자가 하는 한 문장")] public string arrivalLine;
         public FieldTheme theme;
         public int budget;
         [Tooltip("개발 초안 수치인지(기획서에서 확정되지 않은 값)")] public bool draftNumbers;

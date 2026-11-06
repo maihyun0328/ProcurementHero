@@ -17,8 +17,9 @@ MonoBehaviour:
   placeName: "\uC0C8\uBD04\uB300\uD53C\uC18C"
   intro: "\uAEBC\uC9C4 \uBD88\uACFC \uBB3C\uC774 \uACE0\uC778 \uAE38\uC744 \uC0B4\uD3B4\uBCF4\uACE0
     \uC7A5\uCE58\uB97C \uB193\uC744 \uC790\uB9AC\uB97C \uC815\uD574\uC694."
+  arrivalLine: "\uBE44\uAC00 \uC624\uAE30 \uC804\uC5D0 \uC11C\uB458\uB7EC \uC0B4\uD3B4\uBCF4\uC790."
   theme: 2
-  budget: 90
+  budget: 85
   draftNumbers: 1
   playerStart: {x: -14, y: -6.5}
   problems:
@@ -33,6 +34,7 @@ MonoBehaviour:
     residentPosition: {x: -2, y: 2.2}
     line: "\uC804\uC6D0\uC774 \uD544\uC694\uD574\uC694"
     solvedLine: "\uBD88\uC774 \uCF1C\uC838\uC11C \uC548\uC2EC\uB3FC\uC694"
+    memo: "\uCC3D\uBB38 \uBD88\uC774 \uAEBC\uC9D0 \xB7 \uBE44\uC0C1\uB4F1 \uAE5C\uBE61"
   - id: R
     displayName: "\uC815\uBB38 \uC9C4\uC785\uB85C"
     kind: 4
@@ -44,6 +46,7 @@ MonoBehaviour:
     residentPosition: {x: 1.6, y: -0.6}
     line: "\uBB3C\uC774 \uBE60\uC9C0\uC9C0 \uC54A\uC544\uC694"
     solvedLine: "\uC815\uBB38 \uAE38\uB85C \uC548\uC804\uD558\uAC8C \uB4E4\uC5B4\uAC00\uC694"
+    memo: "\uC815\uBB38 \uAE38\uC5D0 \uBB3C\uC774 \uACE0\uC784"
   - id: B
     displayName: "\uBCF4\uC870 \uD1B5\uB85C"
     kind: 4
@@ -55,32 +58,48 @@ MonoBehaviour:
     residentPosition: {x: 11.4, y: 1.6}
     line: "\uC606\uAE38\uB3C4 \uBB3C\uC5D0 \uC7A0\uACBC\uC5B4\uC694"
     solvedLine: "\uC606\uAE38\uB85C\uB3C4 \uB2E4\uB2D0 \uC218 \uC788\uC5B4\uC694"
+    memo: "\uC606\uAE38\uB3C4 \uBB3C\uC5D0 \uC7A0\uAE40"
   items:
   - id: generator
     displayName: "\uBE44\uC0C1\uC804\uC6D0"
     cost: 40
     visual: 5
-    hint: "\uC804\uAE30 \uACF5\uAE09"
+    hint: "\uBC30\uC804\uBC18\uC5D0 \uC5F0\uACB0 \xB7 \uAC74\uBB3C \uC804\uCCB4"
+  - id: portable
+    displayName: "\uC774\uB3D9\uD615 \uBC1C\uC804\uAE30"
+    cost: 25
+    visual: 8
+    hint: "\uBB38 \uAC00\uAE4C\uC774\uC5D0\uC11C\uB9CC \uC804\uC6D0"
   - id: pump
     displayName: "\uBC30\uC218\uD38C\uD504"
     cost: 30
     visual: 6
-    hint: "\uBB3C \uBE7C\uAE30"
+    hint: "\uACE0\uC778 \uBB3C \uBE7C\uAE30"
   - id: sandbags
     displayName: "\uBAA8\uB798\uC8FC\uBA38\uB2C8"
     cost: 15
     visual: 7
-    hint: "\uBB3C\uB9C9\uC774"
+    hint: "\uC606\uAE38 \uBB3C\uB9C9\uC774"
   spots:
-  - id: side
-    displayName: "\uB300\uD53C\uC18C \uC606"
+  - id: panel
+    displayName: "\uBC30\uC804\uBC18 \uC606"
     position: {x: -7, y: 4.5}
     options:
     - itemId: generator
       solves:
       - P
+  - id: door
+    displayName: "\uC815\uBB38 \uC55E"
+    position: {x: 2.8, y: 1.8}
+    options:
+    - itemId: portable
+      solves:
+      - P
+    - itemId: pump
+      solves:
+      - R
   - id: gate
-    displayName: "\uC815\uBB38 \uC9C4\uC785\uB85C"
+    displayName: "\uC9C4\uC785\uB85C \uB05D"
     position: {x: -2.4, y: -5.4}
     options:
     - itemId: pump
@@ -100,24 +119,31 @@ MonoBehaviour:
   - kind: 0
     center: {x: 0, y: 5}
     size: {x: 10, y: 4}
+    clearedBy: 
   - kind: 0
     center: {x: -11.5, y: -2.5}
     size: {x: 5, y: 4}
+    clearedBy: 
   - kind: 0
     center: {x: 12.5, y: 6}
     size: {x: 5, y: 3}
+    clearedBy: 
   - kind: 3
     center: {x: -3.4, y: -2.6}
     size: {x: 2, y: 1.4}
+    clearedBy: R
   - kind: 3
-    center: {x: 4, y: -1.2}
-    size: {x: 1.8, y: 1.2}
+    center: {x: 10.8, y: -2.8}
+    size: {x: 1.4, y: 1.2}
+    clearedBy: B
   - kind: 4
     center: {x: 6, y: 2.6}
     size: {x: 1.2, y: 1.2}
+    clearedBy: 
   - kind: 2
     center: {x: 13.6, y: -1}
     size: {x: 0.5, y: 5}
+    clearedBy: 
   paths:
   - center: {x: 0, y: -3.2}
     size: {x: 3.2, y: 10}

@@ -2,6 +2,7 @@ using System.Linq;
 using NUnit.Framework;
 using ProcurementHero.Core.Field;
 using ProcurementHero.EditorTools;
+using Object = UnityEngine.Object;
 using ProcurementHero.Field;
 using UnityEditor;
 using UnityEngine;
@@ -57,17 +58,132 @@ namespace ProcurementHero.Tests
             Assert.IsTrue(M("f3").draftNumbers);
         }
 
-        [Test]
-        public void ExpensiveOnlyPlanLeavesARequiredProblemInMission2()
+        static FieldEvaluation Eval(FieldMissionData m, params (string spot, string item)[] picks)
         {
-            var m = M("f2");
             var spec = m.ToSpec();
             var plan = new FieldPlan();
-            plan.Toggle(spec, "waiting", "aircon");
-            plan.Toggle(spec, "corridor", "aircon");
-            var e = FieldRules.Evaluate(spec, plan);
-            Assert.AreEqual(80, e.Cost);
-            Assert.AreEqual(1, e.Stars, "냉방장치만 두 개면 급수 문제가 남는다");
+            foreach (var (spot, item) in picks) Assert.AreNotEqual(AssignOutcome.NotAllowed, plan.Toggle(spec, spot, item), $"{spot}={item}");
+            return FieldRules.Evaluate(spec, plan);
+        }
+
+        [Test]
+        public void Mission2SamePlaceItemHasDifferentEffectByPosition()
+        {
+            var m = M("f2");
+            // 냉방장치: 대기실 안쪽은 대기실만, 현관 안쪽은 열린 문으로 바깥 줄까지.
+            CollectionAssert.AreEquivalent(new[] { "H" }, Eval(m, ("waiting", "aircon")).Solved);
+            CollectionAssert.AreEquivalent(new[] { "H", "O" }, Eval(m, ("hall", "aircon")).Solved);
+            // 실외(앞마당)에는 냉방장치를 놓을 수 없고 그늘막만 된다. 복도 쉼터 냉방은 대기실까지 가지 않으므로 허용하지 않는다.
+            var spec = m.ToSpec();
+            Assert.AreEqual(AssignOutcome.NotAllowed, new FieldPlan().Toggle(spec, "yard", "aircon"));
+            Assert.AreEqual(AssignOutcome.NotAllowed, new FieldPlan().Toggle(spec, "corridor", "aircon"));
+            CollectionAssert.AreEquivalent(new[] { "O" }, Eval(m, ("yard", "shade")).Solved);
+        }
+
+        [Test]
+        public void Mission2HasSeveralWaysAndStarDifference()
+        {
+            var m = M("f2");
+            var twoStar = Eval(m, ("waiting", "aircon"), ("corridor", "water"));
+            Assert.AreEqual(65, twoStar.Cost);
+            Assert.AreEqual(2, twoStar.Stars);
+            var threeA = Eval(m, ("hall", "aircon"), ("corridor", "water"));
+            Assert.AreEqual(3, threeA.Stars);
+            Assert.AreEqual(65, threeA.Cost);
+            var threeB = Eval(m, ("waiting", "aircon"), ("hall", "water"), ("yard", "shade"));
+            Assert.AreEqual(3, threeB.Stars);
+            Assert.AreEqual(85, threeB.Cost);
+            Assert.IsTrue(threeB.WithinBudget);
+        }
+
+        [Test]
+        public void Mission3DoorSpotIsAContestedChoice()
+        {
+            var m = M("f3");
+            // 정문 앞: 싼 이동형 발전기(P)와 배수펌프(R)가 같은 자리를 두고 겨룬다.
+            CollectionAssert.AreEquivalent(new[] { "P" }, Eval(m, ("door", "portable")).Solved);
+            CollectionAssert.AreEquivalent(new[] { "R" }, Eval(m, ("door", "pump")).Solved);
+            var cheap = Eval(m, ("door", "portable"), ("gate", "pump"), ("detour", "sandbags"));
+            Assert.AreEqual(70, cheap.Cost);
+            Assert.AreEqual(3, cheap.Stars);
+            var fixedPower = Eval(m, ("panel", "generator"), ("door", "pump"), ("detour", "sandbags"));
+            Assert.AreEqual(85, fixedPower.Cost);
+            Assert.AreEqual(3, fixedPower.Stars);
+            Assert.AreEqual(2, Eval(m, ("panel", "generator"), ("door", "pump")).Stars);
+            Assert.IsFalse(Eval(m, ("panel", "generator"), ("gate", "pump"), ("detour", "pump")).WithinBudget, "펌프 두 대 + 비상전원은 예산 초과");
+        }
+
+        [Test]
+        public void CheapestItemEverywhereIsNotAWinningShortcut()
+        {
+            foreach (var id in new[] { "f2", "f3" })
+            {
+                var m = M(id);
+                var spec = m.ToSpec();
+                var plan = new FieldPlan();
+                foreach (var spot in m.spots)
+                {
+                    var cheapest = spot.options.Select(o => m.Item(o.itemId)).OrderBy(i => i.cost).First();
+                    plan.Toggle(spec, spot.id, cheapest.id);
+                }
+                var e = FieldRules.Evaluate(spec, plan);
+                Assert.IsFalse(e.WithinBudget && e.Stars == 3, m.title + ": 모든 자리에 가장 싼 물품만 고르면 끝나면 안 된다");
+            }
+        }
+
+        [Test]
+        public void Missions2And3HaveMoreThanOneWayToSolveRequired()
+        {
+            foreach (var id in new[] { "f2", "f3" })
+            {
+                var m = M(id);
+                var spec = m.ToSpec();
+                var ways = FieldRules.AllPlans(spec).Select(p => FieldRules.Evaluate(spec, p))
+                    .Where(e => e.WithinBudget && e.AllRequiredSolved)
+                    .Select(e => string.Join(",", e.Assignments.OrderBy(a => a.Key).Select(a => a.Key + "=" + a.Value)))
+                    .Distinct().ToList();
+                Assert.GreaterOrEqual(ways.Count, 3, m.title);
+                Assert.IsTrue(m.spots.Any(s => s.options.Count >= 2), m.title + ": 고를 물품이 둘 이상인 자리가 있어야 한다");
+            }
+        }
+
+        [Test]
+        public void AssetsMatchDefaultSeedData()
+        {
+            foreach (var seed in DefaultFieldData.Missions())
+            {
+                var asset = database.missions.First(m => m.id == seed.Data.id);
+                Assert.AreEqual(seed.Data.budget, asset.budget, asset.name);
+                CollectionAssert.AreEqual(seed.Data.items.Select(i => i.id + ":" + i.cost), asset.items.Select(i => i.id + ":" + i.cost), asset.name);
+                CollectionAssert.AreEqual(
+                    seed.Data.spots.SelectMany(s => s.options.Select(o => s.id + ":" + o.itemId + ">" + string.Join("+", o.solves))),
+                    asset.spots.SelectMany(s => s.options.Select(o => s.id + ":" + o.itemId + ">" + string.Join("+", o.solves))), asset.name);
+                CollectionAssert.AreEqual(seed.Data.obstacles.Select(o => o.clearedBy ?? ""), asset.obstacles.Select(o => o.clearedBy ?? ""), asset.name);
+                Object.DestroyImmediate(seed.Data);
+            }
+        }
+
+        [Test]
+        public void DrainedPuddleClearsAndReplanRestores()
+        {
+            var m = M("f3");
+            var world = FieldWorld.Build(null, m, true);
+            try
+            {
+                Assert.IsTrue(world.PuddleBlocking("R"));
+                Assert.IsTrue(world.PuddleBlocking("B"));
+                world.ApplyInstant(Eval(m, ("door", "pump")));
+                Assert.IsFalse(world.PuddleBlocking("R"), "정문 길 배수 후 관련 물웅덩이는 통행 가능");
+                Assert.IsTrue(world.PuddleBlocking("B"), "관련 없는 물웅덩이는 남는다");
+                Assert.AreEqual(1, world.InstalledCount);
+                world.ApplyInstant(null);
+                Assert.IsTrue(world.PuddleBlocking("R"), "설치 전 상태로 되돌리면 다시 막힌다");
+                Assert.AreEqual(0, world.InstalledCount);
+            }
+            finally
+            {
+                Object.DestroyImmediate(world.gameObject);
+            }
         }
 
         [Test]
