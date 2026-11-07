@@ -19,14 +19,24 @@ namespace ProcurementHero.Field
         public void ShowTitle()
         {
             // 타이틀로 돌아올 때 남은 변경을 저장하고, 이어하기 정보를 저장 형식 그대로 다시 만든다.
-            bool hadSession = State != FieldState.Title && State != FieldState.Ending || saveDirty;
+            bool hadSession = State != FieldState.Title && State != FieldState.Ending && State != FieldState.Intro || saveDirty;
             if (hadSession) SaveProgress();
             RefreshResume();
             BeginScreen(FieldState.Title);
+            BuildTitleScreen(true);
+        }
+
+        /// <summary>타이틀 화면(배경 마을 지도·카드·메뉴). 시작 연출 중에는 메뉴를 보이지만 누를 수 없게 만들어 두고, 연출이 끝나면 켠다.</summary>
+        void BuildTitleScreen(bool selectNow)
+        {
+            if (Resume == null) RefreshResume();
+            if (world) Destroy(world.gameObject);
             world = FieldWorld.Build(worldRoot, database.missions[0], false);
             world.Delta = () => FieldDelta;
 
             var root = UIKit.Rect(screenRoot, "Title").Fill();
+            titleGroup = root.gameObject.AddComponent<CanvasGroup>();
+            titleGroup.interactable = selectNow;
             UIKit.Panel(root, "Shade", Theme.WithAlpha(Theme.Navy, 0.35f), ShapeSprites.Square).rectTransform.Fill();
             var card = UIKit.Panel(root, "Card", Theme.WithAlpha(Theme.Cream, 0.96f)).rectTransform;
             card.Region(0.3f, 0.1f, 0.7f, 0.9f);
@@ -35,6 +45,10 @@ namespace ProcurementHero.Field
             notebook.Place(new Vector2(0.5f, 1f), new Vector2(0, -92), new Vector2(110, 120));
             UIKit.Panel(notebook, "Page", Theme.Hex(0xFFF9EC)).rectTransform.Fill(12, 8, 10, 10);
             FieldArt.Tick(notebook, 60, Theme.TealDark).Place(new Vector2(0.5f, 0.5f), new Vector2(4, 0), new Vector2(60, 60));
+            // 수첩 옆 AI '내일' 표시: 밝기만 천천히 바뀐다(타이틀을 떠나면 화면과 함께 사라짐).
+            var ai = FieldArt.ForecastIcon(card, 56);
+            ai.Place(new Vector2(0.5f, 1f), new Vector2(84, -60), new Vector2(56, 56));
+            ai.gameObject.AddComponent<SoftGlow>();
 
             var title = UIKit.Text(card, "Title", "조달 히어로", 84, Theme.Navy, TextAlignmentOptions.Center, true);
             title.rectTransform.Region(0.05f, 0.66f, 0.95f, 0.8f);
@@ -71,7 +85,8 @@ namespace ProcurementHero.Field
             buttons.Add(UIKit.Button(list, "Quit", "종료", QuitGame, ButtonStyle.Secondary));
 #endif
             UIKit.ChainNavigation(buttons.ToArray(), true);
-            Select(buttons[0]);
+            titleFirst = buttons[0];
+            if (selectNow) Select(buttons[0]);
 
             titleRecord = UIKit.Text(card, "Record", RecordLabel(), 22, Theme.NavySoft, TextAlignmentOptions.Center);
             titleRecord.rectTransform.Region(0.05f, 0.05f, 0.95f, 0.11f);

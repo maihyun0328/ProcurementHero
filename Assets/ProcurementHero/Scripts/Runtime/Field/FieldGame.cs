@@ -23,7 +23,9 @@ namespace ProcurementHero.Field
         Scenario,
         Review,
         Result,
-        Ending
+        Ending,
+        /// <summary>앱 실행 직후 한 번만 나오는 시작 연출. Space·Enter·Esc·버튼으로 건너뛴다.</summary>
+        Intro
     }
 
     /// <summary>
@@ -109,7 +111,9 @@ namespace ProcurementHero.Field
         {
             if (!enabled) return;
             LoadProgress();
-            ShowTitle();
+            // 시작 연출은 앱 실행당 한 번. 저장·진행은 바꾸지 않는다(이어하기 정보는 위에서 읽은 그대로).
+            if (!introPlayed) PlayIntro();
+            else ShowTitle();
         }
 
         /// <summary>현장 연출에 쓰는 시간. 수첩·일시정지·결과 창에서는 멈춘다.</summary>
@@ -156,6 +160,12 @@ namespace ProcurementHero.Field
             if (Time.frameCount == inputLockFrame)
             {
                 if (world) world.MovePlayer(Vector2.zero, 0);
+                return;
+            }
+
+            if (State == FieldState.Intro)
+            {
+                if (Pressed(kb, Key.Escape) || Pressed(kb, Key.Space) || EnterPressed(kb)) SkipIntro();
                 return;
             }
 
@@ -504,6 +514,9 @@ namespace ProcurementHero.Field
             notebookButton = resultButton = skipButton = null;
             notebookRoot = null;
             scenarioPanel = installBanner = null;
+            introRoot = null;
+            titleGroup = null;
+            titleFirst = null;
             recommendPanel = null;
             if (world) Destroy(world.gameObject);
             world = null;
