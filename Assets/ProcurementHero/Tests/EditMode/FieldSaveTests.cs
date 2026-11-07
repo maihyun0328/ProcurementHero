@@ -101,6 +101,57 @@ namespace ProcurementHero.Tests
         }
 
         [Test]
+        public void ReplanPartialEditRestoresExactly()
+        {
+            var progress = new FieldProgress(database.missions.Count);
+            progress.Set(0, Eval(M(0), ("entrance", "streetlamp"), ("stairtop", "streetlamp")));
+            var r = RoundTrip(progress, new[] { new[] { "A", "B", "C" }, new string[0], new string[0] }, 0, FieldSavePhase.Replan,
+                Plan(M(0), ("stairtop", "streetlamp"), ("park", "walklight")), "park");
+            CollectionAssert.AreEquivalent(new[] { "stairtop=streetlamp", "park=walklight" }, r.Draft.Assignments.Select(a => a.Key + "=" + a.Value));
+            Assert.AreEqual(2, r.Results[0].Stars, "이전 확정 결과는 비교·진행 정보로 남는다");
+        }
+
+        [Test]
+        public void ReplanWithEverythingClearedStaysEmptyAfterJson()
+        {
+            var progress = new FieldProgress(database.missions.Count);
+            progress.Set(0, Eval(M(0), ("entrance", "streetlamp"), ("stairtop", "streetlamp")));
+            var data = FieldSave.Capture(database.missions, progress, i => i == 0 ? new[] { "A", "B", "C" } : new string[0], 0, FieldSavePhase.Replan, new FieldPlan(), "entrance");
+            var json = FieldSave.ToJson(data);
+            var r = FieldSave.Restore(database.missions, FieldSave.Parse(json));
+            Assert.AreEqual(FieldSavePhase.Replan, r.Phase);
+            Assert.AreEqual(0, r.Draft.Assignments.Count, "모두 취소한 편집 계획은 빈 채로 돌아온다(이전 확정 배정으로 다시 채우지 않음)");
+            Assert.AreEqual(2, r.Results[0].Stars, "이전 결과는 그대로");
+            // 같은 데이터로 한 번 더(타이틀 복귀 뒤 이어하기 → 다시 저장 → 재실행과 같은 경로)
+            var again = FieldSave.Restore(database.missions, FieldSave.Parse(FieldSave.ToJson(FieldSave.Capture(database.missions, progress,
+                i => i == 0 ? new[] { "A", "B", "C" } : new string[0], r.Current, r.Phase, r.Draft, r.SelectedSpot))));
+            Assert.AreEqual(0, again.Draft.Assignments.Count);
+        }
+
+        [Test]
+        public void ExploreWithEmptyPlanFromStartStaysEmpty()
+        {
+            var progress = new FieldProgress(database.missions.Count);
+            var r = RoundTrip(progress, new[] { new[] { "A" }, new string[0], new string[0] }, 0, FieldSavePhase.Explore, new FieldPlan(), "entrance");
+            Assert.AreEqual(FieldSavePhase.Explore, r.Phase);
+            Assert.AreEqual(0, r.Draft.Assignments.Count);
+        }
+
+        [Test]
+        public void LegacySaveWithoutDraftMarkerUsesPreviousResultForReplan()
+        {
+            // 편집 계획 표시(draftSaved)가 없는 이전 형식: 편집 데이터가 누락된 것으로 보고, 재계획은 이전 확정 배정을 고칠 수 있게 연다.
+            string json = "{\"version\":1,\"currentMission\":\"f1\",\"phase\":\"Replan\",\"draft\":[],\"selectedSpot\":\"entrance\"," +
+                          "\"missions\":[{\"id\":\"f1\",\"confirmed\":true,\"observed\":[\"A\",\"B\",\"C\"],\"picks\":[{\"spot\":\"entrance\",\"item\":\"streetlamp\"},{\"spot\":\"stairtop\",\"item\":\"streetlamp\"}]}]}";
+            var r = FieldSave.Restore(database.missions, FieldSave.Parse(json));
+            Assert.AreEqual(FieldSavePhase.Replan, r.Phase);
+            Assert.AreEqual(2, r.Draft.Assignments.Count);
+            // 확정 결과가 없는 이전 형식 탐색 저장은 빈 계획.
+            var e = FieldSave.Restore(database.missions, FieldSave.Parse("{\"version\":1,\"currentMission\":\"f1\",\"phase\":\"Explore\"}"));
+            Assert.AreEqual(0, e.Draft.Assignments.Count);
+        }
+
+        [Test]
         public void UnknownIdsAreDroppedWithoutBreakingRestore()
         {
             var data = new FieldSaveData

@@ -19,6 +19,12 @@ namespace ProcurementHero.Field
         public string currentMission;
         public string phase;
         public List<FieldSavePick> draft = new List<FieldSavePick>();
+        /// <summary>
+        /// 편집 중 계획을 실제로 저장했는지. true면 draft가 비어 있어도 '모두 취소한 빈 계획'으로 그대로 복원한다.
+        /// 이 값이 없는 이전 저장(false)은 편집 데이터가 누락된 것으로 보고, 재계획이면 이전 확정 배정을 고칠 수 있게 연다.
+        /// JsonUtility는 빈 목록과 없는 목록을 구분하지 못하므로(둘 다 빈 목록) 이 표시로 구분한다. 버전은 1 그대로(하위 호환).
+        /// </summary>
+        public bool draftSaved;
         public string selectedSpot;
         public List<FieldSaveMission> missions = new List<FieldSaveMission>();
     }
@@ -174,13 +180,15 @@ namespace ProcurementHero.Field
         public static FieldSaveData Capture(IList<FieldMissionData> missions, FieldProgress progress, Func<int, IEnumerable<string>> observed,
             int current, FieldSavePhase phase, FieldPlan draft, string selectedSpot)
         {
+            bool editing = draft != null && phase != FieldSavePhase.Review && phase != FieldSavePhase.Complete;
             var data = new FieldSaveData
             {
                 version = Version,
                 currentMission = current >= 0 && current < missions.Count ? missions[current].id : null,
                 phase = phase.ToString(),
                 selectedSpot = selectedSpot,
-                draft = draft != null && phase != FieldSavePhase.Review && phase != FieldSavePhase.Complete ? Picks(draft.Assignments) : new List<FieldSavePick>()
+                draft = editing ? Picks(draft.Assignments) : new List<FieldSavePick>(),
+                draftSaved = editing
             };
             for (int i = 0; i < missions.Count; i++)
             {
@@ -270,7 +278,8 @@ namespace ProcurementHero.Field
             var cspec = cm.ToSpec();
             if (phase == FieldSavePhase.Explore || phase == FieldSavePhase.Replan)
             {
-                restored.Draft = data.draft != null && data.draft.Count > 0
+                // 이번 형식: 저장한 편집 계획을 그대로(빈 계획도 빈 채로). 이전 형식·누락: 아래 순서로 대신 연다.
+                restored.Draft = data.draftSaved || (data.draft != null && data.draft.Count > 0)
                     ? BuildPlan(cm, cspec, data.draft, restored.Warnings)
                     : demotedIndex == current && demotedDraft != null ? demotedDraft
                     : phase == FieldSavePhase.Replan ? BuildPlan(cm, cspec, restored.Results[current].Assignments.Select(a => new FieldSavePick { spot = a.Key, item = a.Value }), restored.Warnings)
