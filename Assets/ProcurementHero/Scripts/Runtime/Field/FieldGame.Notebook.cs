@@ -116,7 +116,7 @@ namespace ProcurementHero.Field
             if (bookParts == null) yield break;
             bookParts.group.interactable = false;
             if (EventSystem.current) EventSystem.current.SetSelectedGameObject(null);
-            yield return FieldBook.Stamp(bookParts, bookParts.right, new Vector2(0.62f, 0.5f), "확정", Theme.Success);
+            yield return FieldBook.Stamp(bookParts, bookParts.right, new Vector2(0.62f, 0.5f), "승인", Theme.Success);
             float t = 0;
             while (t < 0.25f) { t += Time.unscaledDeltaTime; yield return null; }
         }
@@ -134,9 +134,18 @@ namespace ProcurementHero.Field
             var right = bookParts.right;
 
             // 왼쪽 페이지: 현장 지도와 관찰 기록
-            var lt = UIKit.Text(left, "Title", $"현장 지도 · {Mission.placeName}", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true);
-            lt.rectTransform.Region(0.05f, 0.9f, 0.95f, 0.98f);
-            var mapHolder = UIKit.Rect(left, "MapHolder").Region(0.04f, 0.38f, 0.96f, 0.895f);
+            // 지도는 현장을 옮긴 디지털 트윈이라는 설정: 물품을 고르면 예상 영향 구역을 가상으로 비춰 본다(새 시뮬레이션은 없다).
+            var lt = UIKit.Text(left, "Title", $"디지털 트윈 지도 · {Mission.placeName}", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true);
+            lt.rectTransform.Region(0.05f, 0.92f, 0.95f, 0.985f);
+            lt.enableAutoSizing = true;
+            lt.fontSizeMin = 20;
+            lt.fontSizeMax = 30;
+            var fc = UIKit.Text(left, "Forecast", $"<color=#{ColorUtility.ToHtmlStringRGB(Theme.Danger)}>예측</color> {Mission.forecast}  ·  {Mission.eventTime}까지 준비", 19, Theme.NavySoft, TextAlignmentOptions.MidlineLeft);
+            fc.rectTransform.Region(0.05f, 0.88f, 0.95f, 0.92f);
+            fc.enableAutoSizing = true;
+            fc.fontSizeMin = 13;
+            fc.fontSizeMax = 19;
+            var mapHolder = UIKit.Rect(left, "MapHolder").Region(0.04f, 0.4f, 0.96f, 0.875f);
             var map = UIKit.Panel(mapHolder, "Map", Theme.Hex(0xEDE3CC)).rectTransform;
             map.anchorMin = map.anchorMax = new Vector2(0.5f, 0.5f);
             var fitter = map.gameObject.AddComponent<AspectRatioFitter>();
@@ -151,8 +160,16 @@ namespace ProcurementHero.Field
                 tape.localRotation = Quaternion.Euler(0, 0, corner.x > 0 ? -30 : 30);
             }
 
-            var obsTitle = UIKit.Text(left, "ObservedTitle", "관찰 기록", 24, Theme.NavySoft, TextAlignmentOptions.MidlineLeft, true);
-            obsTitle.rectTransform.Region(0.05f, 0.315f, 0.6f, 0.365f);
+            // 지도 범례: 무늬·기호·짧은 글로 '예상'과 '현장 확인'을 구분한다.
+            var legend = UIKit.Text(left, "Legend",
+                "<b>빗금·?</b> AI 예상(확인 전)   <b>단색</b> 현장 확인   <b>청록 테두리</b> 고른 물품의 예상 영향   <b>✓</b> 대비 예상",
+                17, Theme.NavySoft, TextAlignmentOptions.MidlineLeft);
+            legend.rectTransform.Region(0.05f, 0.36f, 0.95f, 0.4f);
+            legend.enableAutoSizing = true;
+            legend.fontSizeMin = 12;
+            legend.fontSizeMax = 17;
+            var obsTitle = UIKit.Text(left, "ObservedTitle", "현장 확인 기록", 24, Theme.NavySoft, TextAlignmentOptions.MidlineLeft, true);
+            obsTitle.rectTransform.Region(0.05f, 0.315f, 0.6f, 0.36f);
             observedRow = UIKit.Rect(left, "Observed").Region(0.04f, 0.2f, 0.96f, 0.31f);
             UIKit.HorizontalList(observedRow, 10, null, TextAnchor.MiddleLeft, false);
 
@@ -163,6 +180,13 @@ namespace ProcurementHero.Field
 
             closeButton = UIKit.Button(right, "Close", "닫기 (Tab)", CloseNotebook, ButtonStyle.Secondary, 22);
             ((RectTransform)closeButton.transform).Region(0.79f, 0.895f, 0.97f, 0.97f);
+            // 보조 기능: 2·3 현장에서 필수 관찰을 마치면 관찰한 곳 기준 추천안을 반투명하게 비교해 볼 수 있다.
+            recommendButton = null;
+            if (MissionIndex > 0)
+            {
+                recommendButton = UIKit.Button(right, "Recommend", "추천안 비교", OpenRecommend, ButtonStyle.Secondary, 20);
+                ((RectTransform)recommendButton.transform).Region(0.79f, 0.84f, 0.97f, 0.89f);
+            }
 
             // 아래 띠: 전체 계획, 예산, 확정
             var band = bookParts.band;
@@ -179,7 +203,7 @@ namespace ProcurementHero.Field
             gaugeFill.anchorMin = Vector2.zero;
             gaugeFill.pivot = new Vector2(0, 0.5f);
 
-            confirmButton = UIKit.Button(band, "Confirm", "계획 확정", () => ConfirmPlan(), ButtonStyle.Primary, 32);
+            confirmButton = UIKit.Button(band, "Confirm", "계획 승인", () => ConfirmPlan(), ButtonStyle.Primary, 32);
             ((RectTransform)confirmButton.transform).Region(0.755f, 0.42f, 0.99f, 0.94f);
             reasonRow = UIKit.Rect(band, "Reason").Region(0.755f, 0.04f, 0.99f, 0.4f);
         }
@@ -204,6 +228,8 @@ namespace ProcurementHero.Field
             DrawItems();
             DrawPlan();
             DrawBudgetAndConfirm(preview);
+            ShowReach(null);
+            if (recommendButton) recommendButton.interactable = !confirmLocked && FieldRules.MissingObservations(Spec, observed) == 0;
 
             // 다시 그린 뒤에도 같은 항목에 키보드 선택을 되돌린다.
             if (keep != null)
@@ -260,7 +286,7 @@ namespace ProcurementHero.Field
                     // 아직 조사하지 않은 곳: 사선 무늬 + 물음표 + '조사 전'. 문제 종류와 해결 예상은 숨긴다.
                     FieldArt.UnknownPattern(zone, Theme.WithAlpha(Theme.Navy, 0.18f));
                     UIKit.Text(zone, "Unknown", "?", 34, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, 8), new Vector2(40, 40));
-                    UIKit.Text(zone, "Name", "조사 전", 16, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -22), new Vector2(150, 22));
+                    UIKit.Text(zone, "Name", "AI 예상 · 확인 전", 16, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -22), new Vector2(170, 22));
                     continue;
                 }
                 var reach = UIKit.Panel(zone, "Reach", Theme.WithAlpha(Theme.Teal, 0.12f)).rectTransform;
@@ -310,7 +336,7 @@ namespace ProcurementHero.Field
 
         void SelectSpot(string spotId)
         {
-            if (State != FieldState.Notebook) return;
+            if (State != FieldState.Notebook || recommendPanel) return;
             SelectedSpot = spotId;
             MarkSaveDirty();
             sound.Play(Sfx.Select);
@@ -332,7 +358,7 @@ namespace ProcurementHero.Field
                 if (seen && !string.IsNullOrEmpty(p.memo))
                 {
                     // 관찰한 곳은 한 줄 메모를 남긴다.
-                    UIKit.Layout(card, 150, 190);
+                    UIKit.Layout(card, 150, 230);
                     t.text = $"<b>{p.displayName}</b>\n<size=15><color=#{ColorUtility.ToHtmlStringRGB(Theme.NavySoft)}>{p.memo}</color></size>";
                     t.rectTransform.Region(0, 0, 1, 0.48f);
                     t.enableAutoSizing = true;
@@ -371,7 +397,7 @@ namespace ProcurementHero.Field
                 var name = UIKit.Text(rt, "Name", item.displayName, 32, allowed ? Theme.Navy : Theme.NavySoft, TextAlignmentOptions.MidlineLeft, true);
                 name.rectTransform.Region(0, 0.5f, 0.62f, 0.95f).offsetMin = new Vector2(140, 0);
                 // 이 자리에 놓으면 닿는 곳: 관찰한 문제 구역만 이름으로 알려 준다(관찰 전 구역은 숨김).
-                string hintText = allowed ? $"{item.hint}\n<b>닿는 곳</b> {ReachText(spot, itemId)}" : "이 자리에 설치 불가";
+                string hintText = allowed ? $"{item.hint}\n<b>예상 영향</b> {ReachText(spot, itemId)}" : "이 자리에 설치 불가";
                 var hint = UIKit.Text(rt, "Hint", hintText, 22, allowed ? Theme.TealDark : Theme.Danger, TextAlignmentOptions.MidlineLeft, !allowed);
                 hint.rectTransform.Region(0, 0.04f, 0.62f, 0.52f).offsetMin = new Vector2(140, 0);
                 hint.enableAutoSizing = true;
@@ -408,6 +434,8 @@ namespace ProcurementHero.Field
         /// <summary>고른 자리에 이 물품을 놓으면 닿는 관찰 구역을 지도에서 테두리로 보여 준다(null이면 끈다).</summary>
         void ShowReach(string itemId)
         {
+            // 아무 물품 줄도 고르지 않았으면 지금 이 자리에 체크한 물품의 영향 구역을 보여 준다.
+            itemId ??= SelectedSpot != null ? Plan.ItemAt(SelectedSpot) : null;
             var option = itemId == null ? null : Mission.Spot(SelectedSpot)?.options.FirstOrDefault(o => o.itemId == itemId);
             foreach (var pair in zoneReach)
                 if (pair.Value) pair.Value.SetActive(option != null && option.solves.Contains(pair.Key));
@@ -419,7 +447,7 @@ namespace ProcurementHero.Field
         public AssignOutcome ToggleItem(string itemId)
         {
             if (State != FieldState.Notebook || SelectedSpot == null) return AssignOutcome.UnknownSpot;
-            if (notebookBusy) return AssignOutcome.UnknownSpot;
+            if (notebookBusy || recommendPanel) return AssignOutcome.UnknownSpot;
             string before = Plan.ItemAt(SelectedSpot);
             var outcome = Plan.Toggle(Spec, SelectedSpot, itemId);
             if (outcome == AssignOutcome.Assigned || outcome == AssignOutcome.Replaced || outcome == AssignOutcome.Cleared) MarkSaveDirty();
@@ -481,7 +509,7 @@ namespace ProcurementHero.Field
                     break;
                 default:
                     FieldArt.Tick(reasonRow, 30, Theme.Success).Place(new Vector2(0, 0.5f), new Vector2(20, 0), new Vector2(30, 30));
-                    text = "확정할 수 있어요";
+                    text = "승인할 수 있어요";
                     color = Theme.Success;
                     break;
             }
@@ -578,7 +606,98 @@ namespace ProcurementHero.Field
         }
     }
 
-    /// <summary>물품 줄을 키보드로 고르거나 마우스를 올렸을 때 지도에 닿는 범위를 켠다.</summary>
+    public partial class FieldGame
+    {
+        Button recommendButton;
+        RectTransform recommendPanel;
+        FieldPlan recommended;
+
+        /// <summary>추천안 비교 창이 열려 있는지(검증용).</summary>
+        public bool RecommendOpen => recommendPanel;
+        /// <summary>지금 보여 주는 추천안(검증용, 닫혀 있으면 null).</summary>
+        public FieldPlan RecommendedPlan => recommendPanel ? recommended : null;
+
+        /// <summary>
+        /// 추천안 비교(보조): 관찰한 곳만 기준으로 예산 안의 계획을 비교해 반투명하게 보여 준다.
+        /// 적용·취소는 사용자가 정하며, 추천을 열어도 계획 확정·공급은 일어나지 않는다.
+        /// </summary>
+        public void OpenRecommend()
+        {
+            if (State != FieldState.Notebook || notebookBusy || confirmLocked || recommendPanel || MissionIndex == 0) return;
+            recommended = FieldRules.Recommend(Spec, observed);
+            if (recommended == null) return;
+            sound.Play(Sfx.Select);
+            var eval = FieldRules.Evaluate(Spec, recommended);
+            var right = bookParts.right;
+            recommendPanel = UIKit.Panel(right, "RecommendPanel", Theme.WithAlpha(Theme.Paper, 0.97f), null, true).rectTransform;
+            recommendPanel.Region(0.03f, 0.2f, 0.97f, 0.83f);
+            recommendPanel.gameObject.AddComponent<Outline>().effectColor = Theme.WithAlpha(Theme.Teal, 0.9f);
+            FieldArt.ForecastIcon(recommendPanel, 54).Place(new Vector2(0, 1), new Vector2(46, -42), new Vector2(54, 54));
+            UIKit.Text(recommendPanel, "Title", "가상 실증 추천안 <size=20>(관찰한 곳 기준)</size>", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true)
+                .rectTransform.Region(0.14f, 0.86f, 0.98f, 0.98f);
+            var lines = Mission.spots.Select(sp =>
+            {
+                var item = recommended.ItemAt(sp.id);
+                return $"<b>{sp.displayName}</b>  {(item != null ? Mission.Item(item).displayName : "<color=#8A90A6>비워 둠</color>")}";
+            });
+            var solvedSeen = Mission.problems.Where(p => observed.Contains(p.id) && eval.IsSolved(p.id)).Select(p => p.displayName);
+            var body = UIKit.Text(recommendPanel, "Body",
+                string.Join("\n", lines) + $"\n\n<b>예산</b> {eval.Cost} / {Mission.budget}\n<b>대비 예상</b> {string.Join(" · ", solvedSeen)}\n" +
+                "<size=19><color=#55607E>관찰한 필수 문제 → 관찰한 추가 목표 → 낮은 비용 순으로 고른 비교안이에요. 관찰하지 않은 곳은 따지지 않아요.</color></size>",
+                24, Theme.Navy, TextAlignmentOptions.TopLeft);
+            body.rectTransform.Region(0.05f, 0.2f, 0.97f, 0.84f);
+            body.enableAutoSizing = true;
+            body.fontSizeMin = 15;
+            body.fontSizeMax = 24;
+            var bar = UIKit.Rect(recommendPanel, "Buttons").Region(0.05f, 0.03f, 0.95f, 0.17f);
+            UIKit.HorizontalList(bar, 16);
+            var cancel = UIKit.Button(bar, "Cancel", "취소", CloseRecommend, ButtonStyle.Secondary, 24);
+            var apply = UIKit.Button(bar, "Apply", "이 계획 적용", ApplyRecommend, ButtonStyle.Primary, 24);
+            UIKit.ChainNavigation(new Selectable[] { cancel, apply }, false);
+            // 지도 위 반투명 표시: 추천 물품을 설치 자리에 흐리게 겹쳐 그린다.
+            foreach (var sp in Mission.spots)
+            {
+                var item = recommended.ItemAt(sp.id);
+                if (item == null) continue;
+                var ghost = UIKit.Rect(mapArea, "Ghost_" + sp.id);
+                ghost.anchorMin = ghost.anchorMax = MapPoint(sp.position) + new Vector2(0, 0.09f);
+                ghost.sizeDelta = new Vector2(60, 60);
+                var group = ghost.gameObject.AddComponent<CanvasGroup>();
+                group.alpha = 0.55f;
+                group.blocksRaycasts = false;
+                UIKit.Shape(ghost, "Ring", ShapeSprites.Circle, Theme.WithAlpha(Theme.Teal, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(60, 60)).raycastTarget = false;
+                FieldArt.ItemIcon(ghost, Mission.Item(item).visual, 46).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(46, 46));
+            }
+            Select(cancel);
+        }
+
+        public void CloseRecommend()
+        {
+            if (!recommendPanel) return;
+            Destroy(recommendPanel.gameObject);
+            recommendPanel = null;
+            if (mapArea)
+                for (int i = mapArea.childCount - 1; i >= 0; i--)
+                    if (mapArea.GetChild(i).name.StartsWith("Ghost_")) Destroy(mapArea.GetChild(i).gameObject);
+            inputLockFrame = Time.frameCount;
+            Select(recommendButton ? recommendButton : SpotButton(SelectedSpot));
+        }
+
+        /// <summary>추천안을 편집 중 계획으로 옮긴다(확정은 하지 않는다).</summary>
+        public void ApplyRecommend()
+        {
+            if (!recommendPanel || recommended == null || State != FieldState.Notebook || confirmLocked) return;
+            var chosen = recommended;
+            Plan = new FieldPlan();
+            foreach (var pair in chosen.Assignments) Plan.Toggle(Spec, pair.Key, pair.Value);
+            MarkSaveDirty();
+            sound.Play(Sfx.Check);
+            CloseRecommend();
+            RefreshNotebook();
+        }
+    }
+
+    /// <summary>물품 줄을 키보드로 고르거나 마우스를 올렸을 때 지도에 예상 영향 구역을 켠다.</summary>
     public class ReachHover : MonoBehaviour, ISelectHandler, IDeselectHandler, IPointerEnterHandler, IPointerExitHandler
     {
         public Action<bool> Changed;

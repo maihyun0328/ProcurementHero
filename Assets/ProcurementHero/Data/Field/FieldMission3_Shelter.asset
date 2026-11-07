@@ -13,12 +13,21 @@ MonoBehaviour:
   m_Name: FieldMission3_Shelter
   m_EditorClassIdentifier: 
   id: f3
-  title: "\uBE44 \uB0B4\uB9AC\uB294 \uB300\uD53C\uC18C"
-  placeName: "\uC0C8\uBD04\uB300\uD53C\uC18C"
-  intro: "\uAEBC\uC9C4 \uBD88\uACFC \uBB3C\uC774 \uACE0\uC778 \uAE38\uC744 \uC0B4\uD3B4\uBCF4\uACE0
-    \uC7A5\uCE58\uB97C \uB193\uC744 \uC790\uB9AC\uB97C \uC815\uD574\uC694."
+  title: "\uD3ED\uC6B0\uC5D0\uB3C4 \uBA48\uCD94\uC9C0 \uC54A\uB294 \uB300\uD53C\uC18C"
+  placeName: "\uC0C8\uBD04\uC2DC \uB300\uD53C\uC18C"
+  intro: "\uC57D\uD55C \uBE44\uAC00 \uC624\uB294 \uC9C0\uAE08, \uCE68\uC218\uC640
+    \uC815\uC804\uC774 \uC62C \uACF3\uC744 \uD655\uC778\uD558\uACE0 \uC7A5\uCE58\uB97C
+    \uB193\uC744 \uC790\uB9AC\uB97C \uC815\uD574\uC694."
   arrivalLine: "\uBE44\uAC00 \uB354 \uAC70\uC138\uC9C0\uAE30 \uC804\uC5D0 \uC11C\uB458\uB7EC\uC57C\uACA0\uC5B4."
   theme: 2
+  forecast: "30\uBD84 \uB4A4 \uAC15\uC6B0 \uC99D\uAC00 \xB7 \uC9C4\uC785\uB85C \uCE68\uC218\xB7\uC804\uB825
+    \uC911\uB2E8 \uC704\uD5D8"
+  nowTime: 15:00
+  eventTime: 15:30
+  eventCaption: "\uBE44\uAC00 \uAC70\uC138\uC9C0\uACE0 \uC804\uB825 \uACF5\uAE09\uC774
+    \uB04A\uACBC\uC5B4\uC694"
+  responseCaption: "\uC815\uC804\xB7\uC218\uC704 \uC13C\uC11C\uAC00 \uC0C1\uD669\uC744
+    \uAC10\uC9C0\uD588\uC5B4\uC694"
   budget: 85
   draftNumbers: 1
   playerStart: {x: -14, y: -6.5}
@@ -32,9 +41,12 @@ MonoBehaviour:
     zoneCenter: {x: 0, y: 5}
     zoneSize: {x: 11, y: 5}
     residentPosition: {x: -2, y: 2.2}
-    line: "\uBD88\uC774 \uAEBC\uC838\uC11C \uBD88\uC548\uD574\uC694"
+    line: "\uBE44\uAC00 \uC138\uC9C0\uBA74 \uC804\uAE30\uAC00 \uB04A\uAE38\uAE4C
+      \uBD10 \uAC71\uC815\uC774\uC5D0\uC694"
+    eventLine: "\uBD88\uC774 \uAEBC\uC838\uC11C \uBD88\uC548\uD574\uC694"
     solvedLine: "\uBD88\uC774 \uCF1C\uC838\uC11C \uC548\uC2EC\uB3FC\uC694"
-    memo: "\uCC3D\uBB38 \uBD88\uC774 \uAEBC\uC9D0 \xB7 \uBE44\uC0C1\uB4F1 \uAE5C\uBE61"
+    earlyLevel: 0
+    memo: "\uBC30\uC804\uBC18 \uD558\uB098\uBFD0 \xB7 \uBE44\uC0C1\uC804\uC6D0 \uC5C6\uC74C"
   - id: R
     displayName: "\uC815\uBB38 \uC9C4\uC785\uB85C"
     kind: 4
@@ -44,10 +56,14 @@ MonoBehaviour:
     zoneCenter: {x: 0, y: -2.6}
     zoneSize: {x: 4.4, y: 6}
     residentPosition: {x: 1.6, y: -0.6}
-    line: "\uC815\uBB38 \uAE38\uC5D0 \uBB3C\uC774 \uACE0\uC5EC\uC11C \uBABB \uB4E4\uC5B4\uAC00\uC694"
+    line: "\uBC8C\uC368 \uBB3C\uC774 \uACE0\uC600\uC5B4\uC694. \uBE44\uAC00 \uB354
+      \uC624\uBA74 \uBABB \uB4E4\uC5B4\uC624\uACA0\uC5B4\uC694"
+    eventLine: "\uC815\uBB38 \uAE38\uC5D0 \uBB3C\uC774 \uCC28\uC11C \uBABB \uB4E4\uC5B4\uAC00\uC694"
     solvedLine: "\uC774\uC81C \uC815\uBB38 \uAE38\uB85C \uC548\uC804\uD558\uAC8C
       \uB4E4\uC5B4\uAC08 \uC218 \uC788\uC5B4\uC694."
-    memo: "\uC815\uBB38 \uAE38\uC5D0 \uBB3C\uC774 \uACE0\uC784"
+    earlyLevel: 0.35
+    memo: "\uC595\uAC8C \uACE0\uC778 \uBB3C \xB7 \uAC15\uC6B0 \uC99D\uAC00 \uC2DC
+      \uC9C4\uC785\uB85C \uCE68\uC218 \uC704\uD5D8"
   - id: B
     displayName: "\uBCF4\uC870 \uD1B5\uB85C"
     kind: 4
@@ -57,35 +73,45 @@ MonoBehaviour:
     zoneCenter: {x: 10, y: -0.4}
     zoneSize: {x: 4, y: 7}
     residentPosition: {x: 11.4, y: 1.6}
-    line: "\uC606\uAE38\uB3C4 \uBB3C\uC5D0 \uC7A0\uACBC\uC5B4\uC694"
+    line: "\uC606\uAE38\uB85C \uBE57\uBB3C\uC774 \uC870\uAE08\uC529 \uD758\uB7EC\uB4E4\uC5B4\uC694"
+    eventLine: "\uC606\uAE38\uB3C4 \uBB3C\uC5D0 \uC7A0\uACBC\uC5B4\uC694"
     solvedLine: "\uC774\uC81C \uC606\uAE38\uB85C\uB3C4 \uB2E4\uB2D0 \uC218 \uC788\uC5B4\uC694"
-    memo: "\uC606\uAE38\uB3C4 \uBB3C\uC5D0 \uC7A0\uAE40"
+    earlyLevel: 0.12
+    memo: "\uC606\uAE38\uB85C \uBE57\uBB3C\uC774 \uD758\uB7EC\uB4E6"
   items:
   - id: generator
     displayName: "\uBE44\uC0C1\uC804\uC6D0"
     cost: 40
     visual: 5
     hint: "\uBC30\uC804\uBC18\uC5D0 \uC5F0\uACB0"
+    responseLine: "\uBE44\uC0C1\uC804\uC6D0\uC73C\uB85C \uC790\uB3D9 \uC804\uD658\uB3FC\uC694"
   - id: portable
     displayName: "\uC774\uB3D9\uD615 \uBC1C\uC804\uAE30"
     cost: 25
     visual: 8
     hint: "\uC815\uBB38 \uAC00\uAE4C\uC774 \uC5F0\uACB0"
+    responseLine: "\uC774\uB3D9\uD615 \uBC1C\uC804\uAE30\uAC00 \uC804\uAE30\uB97C
+      \uBCF4\uB0B4\uC694"
   - id: pump
     displayName: "\uBC30\uC218\uD38C\uD504"
     cost: 30
     visual: 6
     hint: "\uACE0\uC778 \uBB3C \uBE7C\uAE30"
+    responseLine: "\uBC30\uC218\uD38C\uD504\uAC00 \uBB3C\uC744 \uBE7C\uC694"
   - id: bigpump
     displayName: "\uB300\uD615 \uBC30\uC218\uD38C\uD504"
     cost: 45
     visual: 10
     hint: "\uAE4A\uAC8C \uACE0\uC778 \uBB3C \uBE7C\uAE30"
+    responseLine: "\uB300\uD615 \uBC30\uC218\uD38C\uD504\uAC00 \uAE4A\uC740 \uBB3C\uC744
+      \uBE7C\uC694"
   - id: sandbags
     displayName: "\uBAA8\uB798\uC8FC\uBA38\uB2C8"
     cost: 15
     visual: 7
-    hint: "\uC606\uAE38 \uBB3C\uB9C9\uC774"
+    hint: "\uBB3C\uC774 \uB4E4\uC5B4\uC624\uAE30 \uC804 \uBB3C\uB9C9\uC774"
+    responseLine: "\uBAA8\uB798\uC8FC\uBA38\uB2C8\uAC00 \uBB3C\uC774 \uB118\uC5B4\uC624\uC9C0
+      \uC54A\uAC8C \uB9C9\uC544\uC694"
   spots:
   - id: panel
     displayName: "\uBC30\uC804\uBC18 \uC606"
@@ -157,3 +183,5 @@ MonoBehaviour:
   - center: {x: 0, y: 2}
     size: {x: 14, y: 1.6}
   reactions: []
+  crowd:
+  - {x: -0.6, y: 1.5}

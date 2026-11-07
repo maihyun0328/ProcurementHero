@@ -228,6 +228,39 @@ namespace ProcurementHero.Core.Field
         public static int MissingObservations(FieldMissionSpec mission, ICollection<string> observed) =>
             mission.Problems.Count(p => p.MustObserve && !observed.Contains(p.Id));
 
+        /// <summary>
+        /// 수첩의 '추천안 비교'(가상 실증 보조). 필수 관찰을 마치기 전에는 null.
+        /// 예산 안의 모든 계획을 관찰한 필수 문제 해결 수 → 관찰한 추가 문제 해결 수 → 낮은 비용 → 적은 물품 수로 비교한다.
+        /// 관찰하지 않은 문제는 비교에 넣지 않는다(정답을 미리 알려 주지 않는다). 판정은 Evaluate와 같은 Solved를 쓴다.
+        /// </summary>
+        public static FieldPlan Recommend(FieldMissionSpec mission, ICollection<string> observed)
+        {
+            if (MissingObservations(mission, observed) > 0) return null;
+            var required = mission.Problems.Where(p => p.Required && observed.Contains(p.Id)).Select(p => p.Id).ToList();
+            var bonus = mission.Problems.Where(p => !p.Required && observed.Contains(p.Id)).Select(p => p.Id).ToList();
+            FieldPlan best = null;
+            int bestRequired = -1, bestBonus = -1, bestCost = int.MaxValue, bestCount = int.MaxValue;
+            foreach (var plan in AllPlans(mission))
+            {
+                if (plan.Count == 0) continue;
+                int cost = Cost(mission, plan);
+                if (cost > mission.Budget) continue;
+                var solved = Solved(mission, plan);
+                int r = required.Count(solved.Contains), b = bonus.Count(solved.Contains);
+                bool better = r != bestRequired ? r > bestRequired
+                    : b != bestBonus ? b > bestBonus
+                    : cost != bestCost ? cost < bestCost
+                    : plan.Count < bestCount;
+                if (!better) continue;
+                best = plan;
+                bestRequired = r;
+                bestBonus = b;
+                bestCost = cost;
+                bestCount = plan.Count;
+            }
+            return best;
+        }
+
         /// <summary>모든 지점에 (미배정 + 설치 가능한 물품) 중 하나를 고르는 모든 조합을 만든다.</summary>
         public static IEnumerable<FieldPlan> AllPlans(FieldMissionSpec mission)
         {

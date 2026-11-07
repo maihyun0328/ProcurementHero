@@ -323,6 +323,29 @@ namespace ProcurementHero.Field
             return root;
         }
 
+        /// <summary>
+        /// AI 수첩 '내일'의 예측 표시: 사선 무늬(예상) 위에 작은 화면과 그래프 선. '현장 확인'(체크·단색)과 무늬로 구분한다.
+        /// </summary>
+        public static RectTransform ForecastIcon(Transform parent, float size)
+        {
+            var root = UIKit.Rect(parent, "Forecast");
+            root.sizeDelta = new Vector2(size, size);
+            float k = size / 100f;
+            var screen = Ui(root, "Screen", ShapeSprites.Rounded, Theme.Hex(0xF2C14E), Vector2.zero, new Vector2(90 * k, 76 * k));
+            screen.type = Image.Type.Sliced;
+            var stripes = UIKit.Rect(screen.rectTransform, "Hatch").Fill(6 * k, 6 * k, 6 * k, 6 * k);
+            var hatch = stripes.gameObject.AddComponent<Image>();
+            hatch.sprite = ShapeSprites.Stripes;
+            hatch.type = Image.Type.Tiled;
+            hatch.color = Theme.WithAlpha(Theme.Navy, 0.25f);
+            hatch.raycastTarget = false;
+            // 상승하는 예측선
+            Ui(root, "LineA", ShapeSprites.Rounded, Theme.Navy, new Vector2(-18 * k, -6 * k), new Vector2(34 * k, 9 * k)).rectTransform.localRotation = Quaternion.Euler(0, 0, 30);
+            Ui(root, "LineB", ShapeSprites.Rounded, Theme.Navy, new Vector2(14 * k, 6 * k), new Vector2(34 * k, 9 * k)).rectTransform.localRotation = Quaternion.Euler(0, 0, 10);
+            Ui(root, "Dot", ShapeSprites.Circle, Theme.Danger, new Vector2(30 * k, 10 * k), new Vector2(16 * k, 16 * k));
+            return root;
+        }
+
         /// <summary>체크 표시(✓ 모양을 두 막대로 그림).</summary>
         public static RectTransform Tick(Transform parent, float size, Color color)
         {

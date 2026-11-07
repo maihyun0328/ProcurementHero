@@ -9,7 +9,9 @@ namespace ProcurementHero.Field
 {
     /// <summary>
     /// 미션 데이터로 탑다운 현장을 만든다. 충돌 영역은 그림의 바닥(발자국) 사각형과 같다.
-    /// 문제 구역의 모습은 '해결 정도(0~1)'로만 바뀌며, 해결 여부는 FieldRules 판정 결과를 그대로 받는다.
+    /// 문제 구역의 모습은 세 값으로만 정해진다: 확정 계획이 그 문제를 해결하는지(level, FieldRules 판정 그대로),
+    /// 예측한 상황이 얼마나 일어났는지(hazard), 준비한 시설이 얼마나 대응했는지(respond).
+    /// 배송·설치 때는 물품만 놓이고(hazard·respond 0), 시간이 흐른 뒤 상황이 일어나야 해결 모습이 나타난다.
     /// 건물·나무·사람은 발 위치로 깊이 정렬해 앞뒤가 자연스럽게 겹친다.
     /// </summary>
     public class FieldWorld : MonoBehaviour
@@ -50,6 +52,8 @@ namespace ProcurementHero.Field
             public float moveT = 1f;
             public FieldReaction reaction;
             public FieldItemVisual? solvedBy;
+            public string solvedSpot;
+            public SpriteRenderer patch;
             public bool Moving => moveT < 1f;
         }
 
@@ -69,6 +73,12 @@ namespace ProcurementHero.Field
         readonly List<GameObject> temps = new List<GameObject>();
         Transform truck, van;
         Rig player;
+        // 미래 상황: hazard(예측한 상황의 진행 0~1)와 respond(준비한 시설의 자동 대응 0~1).
+        float hazard, respond;
+        SpriteRenderer sky, sun, cloud, playerHalo;
+        readonly List<SpriteRenderer> litWindows = new List<SpriteRenderer>();
+        class Visitor { public Rig rig; public Vector2 from, to; }
+        readonly List<Visitor> crowd = new List<Visitor>();
         float observePose, observeTimer, notebookPose;
 
         public static FieldWorld Build(Transform parent, FieldMissionData mission, bool withPlayer)
@@ -85,6 +95,9 @@ namespace ProcurementHero.Field
             world.truck = world.BuildVehicle("Truck", Theme.Teal, Theme.TealDark, true);
             world.van = world.BuildVehicle("Van", Theme.Hex(0xF2EEE4), Theme.Teal, false);
             if (mission.theme == FieldTheme.Shelter) world.BuildRain();
+            world.BuildSky();
+            world.BuildCrowd();
+            world.RenderAll();
             return world;
         }
 
@@ -102,7 +115,8 @@ namespace ProcurementHero.Field
             switch (Mission.theme)
             {
                 case FieldTheme.NightAlley:
-                    ground = Theme.Hex(0x3F5A4E); path = Theme.Hex(0x9A9180); edge = Theme.Hex(0x6F6758);
+                    // 아직 밝은 오후의 골목. 저녁은 위에 덮는 하늘색(sky)으로 표현한다.
+                    ground = Theme.Hex(0x6E9472); path = Theme.Hex(0xBDB39C); edge = Theme.Hex(0x8F8672);
                     wall = Theme.Hex(0xC9A98E); roof = Theme.Hex(0x7A4A5C);
                     break;
                 case FieldTheme.Clinic:
@@ -144,7 +158,7 @@ namespace ProcurementHero.Field
                 for (int i = 0; i < 7; i++)
                     FieldArt.Box(transform, "Step", Theme.Hex(0xB2AA96), new Vector2(-0.6f, -1.4f + i * 0.55f), new Vector2(3.2f, 0.14f), FieldArt.OrderPathDetail);
             if (Mission.theme == FieldTheme.Clinic)
-                FieldArt.Glow(transform, "Sun", Theme.WithAlpha(Theme.Hex(0xFFD36B), 0.55f), new Vector2(13.5f, 6.5f), new Vector2(5, 5), FieldArt.OrderZone);
+                sun = FieldArt.Glow(transform, "Sun", Theme.WithAlpha(Theme.Hex(0xFFD36B), 0.55f), new Vector2(13.5f, 6.5f), new Vector2(5, 5), FieldArt.OrderZone);
 
             AddCollider(new Vector2(0, HalfHeight + 0.5f), new Vector2(HalfWidth * 2 + 2, 1));
             AddCollider(new Vector2(0, -HalfHeight - 0.5f), new Vector2(HalfWidth * 2 + 2, 1));
@@ -185,8 +199,8 @@ namespace ProcurementHero.Field
                         for (int i = 0; i < columns; i++)
                         {
                             float x = -o.size.x / 2 + (i + 0.5f) * o.size.x / columns;
-                            FieldArt.Round(root, "Window", Mission.theme == FieldTheme.NightAlley ? Theme.Hex(0xF6D98A) : Theme.Hex(0x8FB7D6),
-                                new Vector2(x, -o.size.y / 2 + 0.95f), new Vector2(0.62f, 0.55f), 2);
+                            var window = FieldArt.Round(root, "Window", Theme.Hex(0x8FB7D6), new Vector2(x, -o.size.y / 2 + 0.95f), new Vector2(0.62f, 0.55f), 2);
+                            if (Mission.theme == FieldTheme.NightAlley) litWindows.Add(window);
                             FieldArt.Box(root, "Sill", Color.Lerp(wall, Color.black, 0.3f), new Vector2(x, -o.size.y / 2 + 0.62f), new Vector2(0.7f, 0.08f), 2);
                         }
                         break;
@@ -378,7 +392,7 @@ namespace ProcurementHero.Field
         {
             player = BuildPerson(Mission.playerStart, 0, true);
             var go = player.root.gameObject;
-            FieldArt.Glow(player.root, "Halo", Theme.WithAlpha(Color.white, Mission.theme == FieldTheme.NightAlley ? 0.3f : 0f), new Vector2(0, 0.1f), new Vector2(2.4f, 2.4f), -6);
+            playerHalo = FieldArt.Glow(player.root, "Halo", Theme.WithAlpha(Color.white, 0f), new Vector2(0, 0.1f), new Vector2(2.4f, 2.4f), -6);
             var rb = go.AddComponent<Rigidbody2D>();
             rb.gravityScale = 0;
             rb.freezeRotation = true;
@@ -416,7 +430,7 @@ namespace ProcurementHero.Field
 
         void BuildRain()
         {
-            FieldArt.Box(transform, "Cloud", Theme.WithAlpha(Theme.Hex(0x45506A), 0.25f), new Vector2(0, 7.2f), new Vector2(34, 3), FieldArt.OrderWeather - 1);
+            cloud = FieldArt.Box(transform, "Cloud", Theme.WithAlpha(Theme.Hex(0x45506A), 0.25f), new Vector2(0, 7.2f), new Vector2(34, 3), FieldArt.OrderWeather - 1);
             var rng = new System.Random(7);
             for (int i = 0; i < 46; i++)
             {
@@ -426,7 +440,37 @@ namespace ProcurementHero.Field
             }
         }
 
+        /// <summary>현장 전체에 덮는 하늘빛(저녁·폭염·폭우). 문제 구역의 어둠·불빛보다 아래, 건물·사람보다 위.</summary>
+        void BuildSky()
+        {
+            sky = FieldArt.Box(transform, "Sky", Color.clear, Vector2.zero, new Vector2(HalfWidth * 2 + 4, HalfHeight * 2 + 6), FieldArt.OrderDark - 5);
+        }
+
+        /// <summary>상황이 일어나면 늘어나는 이용객(장식용 소수). 판정·충돌과 무관하다.</summary>
+        void BuildCrowd()
+        {
+            int i = 0;
+            foreach (var to in Mission.crowd)
+            {
+                var from = new Vector2(to.x + (i % 2 == 0 ? -2.5f : 2.5f), -HalfHeight - 1.2f);
+                var rig = BuildPerson(from, Mission.problems.Count + i + 1, false);
+                rig.mark.enabled = false;
+                rig.root.gameObject.SetActive(false);
+                crowd.Add(new Visitor { rig = rig, from = from, to = to });
+                i++;
+            }
+        }
+
         // ───────── 상태 ─────────
+
+        /// <summary>예측한 상황의 진행(0: 상황 전, 1: 상황이 일어남).</summary>
+        public float Hazard => hazard;
+        /// <summary>준비한 시설의 자동 대응 진행(0~1). 상황이 일어난 뒤에만 오른다.</summary>
+        public float Respond => respond;
+        /// <summary>해당 문제가 지금 화면에서 해결된 모습으로 보이는 정도(=확정 계획 해결 여부 × 시설 대응).</summary>
+        public float SiteShown(string problemId) => sites.TryGetValue(problemId, out var s) ? Response(s) : -1f;
+        /// <summary>장식용 이용객 중 지금 보이는 수(검증용).</summary>
+        public int VisibleCrowd => crowd.Count(v => v.rig.root.gameObject.activeSelf);
 
         public IEnumerable<FieldProblemEntry> Problems => Mission.problems;
         public Vector2 PlayerPosition => Player ? (Vector2)Player.transform.localPosition : Mission.playerStart;
@@ -443,6 +487,18 @@ namespace ProcurementHero.Field
         public Vector2 ResidentAnchor(string problemId) => sites.TryGetValue(problemId, out var s) ? s.anchor : Vector2.zero;
 
         public bool ResidentMoved(string problemId) => sites.TryGetValue(problemId, out var s) && (s.Moving || s.anchor != s.data.residentPosition);
+
+        /// <summary>
+        /// 지금 들려줄 주민 대사. 시설이 대응해 해결된 모습이면 해결 대사, 상황이 일어났는데 해결되지 않았으면 상황 대사,
+        /// 상황 전이면 초기 징후 대사. 판정은 바꾸지 않고 보여 주는 단계만 따른다.
+        /// </summary>
+        public string LineFor(FieldProblemEntry p)
+        {
+            if (!sites.TryGetValue(p.id, out var s)) return p.line;
+            if (Response(s) >= 0.99f) return SolvedLine(p);
+            if (hazard >= 0.99f && !string.IsNullOrEmpty(p.eventLine)) return p.eventLine;
+            return p.line;
+        }
 
         /// <summary>문제를 해결한 물품 그림(해결 전이면 null). 반응·그림을 고르는 데만 쓰고 판정에는 쓰지 않는다.</summary>
         public FieldItemVisual? SolvedBy(string problemId) => sites.TryGetValue(problemId, out var s) ? s.solvedBy : null;
@@ -506,13 +562,31 @@ namespace ProcurementHero.Field
 
         public Vector3 WorldPoint(Vector2 local) => transform.TransformPoint(local);
 
-        /// <summary>판정 결과(해결된 문제와 배정 목록)를 연출 없이 바로 적용한다.</summary>
+        /// <summary>
+        /// 판정 결과를 연출 없이 바로 적용한다. 결과가 있으면 '상황이 일어나고 시설이 대응을 마친' 최종 상태
+        /// (재확인·이어하기·엔딩·건너뛰기 끝), null이면 설치 전·상황 전 상태(재계획)다.
+        /// </summary>
         public void ApplyInstant(FieldEvaluation result)
+        {
+            StopRoutines();
+            ApplyState(result, result != null ? 1f : 0f, result != null ? 1f : 0f);
+        }
+
+        /// <summary>물품만 설치한 상황 전 상태(배송·설치가 끝난 직후). 해결 모습은 아직 보이지 않는다.</summary>
+        public void ApplyPrepared(FieldEvaluation result)
+        {
+            StopRoutines();
+            ApplyState(result, 0f, 0f);
+        }
+
+        void StopRoutines()
         {
             if (installing != null) StopCoroutine(installing);
             installing = null;
+            if (scenario != null) StopCoroutine(scenario);
+            scenario = null;
+            pendingDone = null;
             ClearTemps();
-            ApplyState(result);
         }
 
         GameObject Temp(GameObject go)
@@ -538,11 +612,13 @@ namespace ProcurementHero.Field
         {
             site.reaction = null;
             site.solvedBy = null;
+            site.solvedSpot = null;
             if (result == null || !result.IsSolved(site.data.id)) return;
             site.reaction = Mission.ReactionFor(site.data.id, result.Assignments);
             if (site.reaction != null)
             {
                 site.solvedBy = Mission.Item(site.reaction.itemId)?.visual;
+                site.solvedSpot = site.reaction.spotId;
                 return;
             }
             foreach (var spot in Mission.spots)
@@ -551,6 +627,7 @@ namespace ProcurementHero.Field
                 var option = spot.options.FirstOrDefault(o => o.itemId == itemId);
                 if (option == null || !option.solves.Contains(site.data.id)) continue;
                 site.solvedBy = Mission.Item(itemId)?.visual;
+                site.solvedSpot = spot.id;
                 return;
             }
         }
@@ -558,31 +635,34 @@ namespace ProcurementHero.Field
         static Vector2 SettledPosition(Site site) =>
             site.reaction != null && site.reaction.moveResident ? site.reaction.residentPosition : site.data.residentPosition;
 
-        void ApplyState(FieldEvaluation result)
+        void ApplyState(FieldEvaluation result, float hazardLevel, float respondLevel)
         {
             truck.localPosition = new Vector2(-HalfWidth - 5, TruckRoadY);
+            hazard = hazardLevel;
+            respond = respondLevel;
             ClearInstalled();
             if (result != null)
                 foreach (var pair in result.Assignments) PlaceItem(pair.Key, pair.Value);
             foreach (var site in sites.Values)
             {
                 site.level = site.target = result != null && result.IsSolved(site.data.id) ? 1f : 0f;
-                site.reacted = site.level >= 1f;
+                site.reacted = Response(site) >= 0.99f;
                 site.cheerTimer = 0f;
                 ResolveOutcome(site, result);
-                // 건너뛰기·정상 재생 모두 같은 자리로 정착한다. 재계획(결과 없음)이면 설치 전 대기 위치로 돌아간다.
-                site.anchor = SettledPosition(site);
+                // 건너뛰기·정상 재생 모두 같은 자리로 정착한다. 시설이 대응하기 전(설치 직후·재계획)에는 원래 대기 위치.
+                site.anchor = respond >= 0.99f ? SettledPosition(site) : site.data.residentPosition;
                 site.moveT = 1f;
                 site.resident.root.localPosition = site.anchor;
                 FieldArt.SetDepth(site.resident.root, site.anchor.y - 0.45f);
-                Render(site);
             }
+            RenderAll();
         }
 
         void ClearInstalled()
         {
             foreach (var go in installed.Values) Kill(go);
             installed.Clear();
+            placedItems.Clear();
             foreach (var m in spotMarkers.Values) m.gameObject.SetActive(true);
         }
 
@@ -603,16 +683,23 @@ namespace ProcurementHero.Field
                 FieldArt.Ellipse(container, "ShadeGround", Theme.WithAlpha(Theme.Navy, 0.22f), new Vector2(0.15f, 0.45f), new Vector2(2.5f, 1.0f), FieldArt.OrderFlat + 3);
             }
             installed[spotId] = container.gameObject;
+            placedItems[spotId] = itemId;
             spotMarkers[spotId].gameObject.SetActive(false);
+            // 막 설치한 조명은 꺼진 채로 둔다(상황이 와야 켜진다).
+            RenderEnvironment();
         }
 
-        Coroutine installing;
+        Coroutine installing, scenario;
         FieldEvaluation pendingResult;
         Action pendingDone;
 
         public bool IsInstalling => installing != null;
+        public bool IsScenarioPlaying => scenario != null;
 
-        /// <summary>배송 차량 → 지점별 상자 → 설치 → 문제 구역 변화. 건너뛰면 같은 최종 상태를 한 번만 적용한다.</summary>
+        /// <summary>
+        /// 배송 차량 → 지점별 상자 → 설치. 물품만 놓고 문제 구역·주민은 그대로 둔다(미래 상황의 성공을 미리 보여 주지 않는다).
+        /// 건너뛰면 같은 '설치만 끝난' 상태를 한 번만 적용한다.
+        /// </summary>
         public void PlayInstall(FieldEvaluation result, Action<Sfx> sound, Action done)
         {
             ApplyInstant(null);
@@ -626,15 +713,12 @@ namespace ProcurementHero.Field
             if (installing == null) return;
             var result = pendingResult;
             var done = pendingDone;
-            pendingDone = null;
-            ApplyInstant(result);
+            ApplyPrepared(result);
             done?.Invoke();
         }
 
         IEnumerator InstallRoutine(FieldEvaluation result, Action<Sfx> sound)
         {
-            // 판정 결과로 '무엇이 해결했는지'를 먼저 정해 둔다. 주민은 반응에 적힌 자리의 물품이 놓일 때 옮겨 간다.
-            foreach (var site in sites.Values) ResolveOutcome(site, result);
             var order = Mission.spots.Where(s => result.Assignments.ContainsKey(s.id)).ToList();
             foreach (var spot in order)
             {
@@ -654,34 +738,103 @@ namespace ProcurementHero.Field
                 yield return Animate(0.25f, t => model.localScale = Vector3.one * (0.4f + 0.6f * EaseBack(t)));
                 Sparkle(spot.position + new Vector2(0, 0.6f));
                 sound?.Invoke(Sfx.Install);
-
-                var solves = Mission.Spot(spot.id).options.First(o => o.itemId == result.Assignments[spot.id]).solves;
-                foreach (var id in solves)
-                    if (sites.TryGetValue(id, out var site)) site.target = 1f;
-                yield return Animate(0.6f, t =>
-                {
-                    foreach (var site in sites.Values)
-                        if (site.target > site.level) { site.level = Mathf.Max(site.level, t); Render(site); }
-                });
-                foreach (var site in sites.Values)
-                {
-                    var r = site.reaction;
-                    if (r == null || !r.moveResident || r.spotId != spot.id || site.anchor == r.residentPosition) continue;
-                    site.moveFrom = site.resident.root.localPosition;
-                    site.moveTo = r.residentPosition;
-                    site.anchor = r.residentPosition;
-                    site.moveT = 0f;
-                    site.cheerTimer = 0f;
-                    site.reacted = true;
-                }
+                yield return Wait(0.2f);
             }
             yield return Move(truck, truck.localPosition, new Vector2(HalfWidth + 5, TruckRoadY), 0.8f);
-            // 연출 끝에도 판정 결과를 그대로 다시 적용해 건너뛰기와 같은 최종 상태가 되게 한다.
+            // 연출 끝에도 같은 '설치만 끝난' 상태를 다시 적용해 건너뛰기와 같게 한다.
             var done = pendingDone;
             pendingDone = null;
             installing = null;
-            ApplyState(result);
+            ApplyState(result, 0f, 0f);
             done?.Invoke();
+        }
+
+        // ───────── 시간 경과 · 상황 발생 · 시설 대응 ─────────
+
+        public const float ScenarioPassSeconds = 2.0f, ScenarioPeakSeconds = 0.6f, ScenarioRespondSeconds = 0.9f, ScenarioSettleSeconds = 1.4f;
+
+        /// <summary>
+        /// 확정 계획을 고정한 뒤 시간이 흐르고(hazard 0→1) 예측한 상황이 일어난다. 잠시 뒤 준비한 시설이 자동으로 대응하고(respond 0→1)
+        /// 주민이 시설을 이용한다. 해결 여부는 result(FieldRules 판정)만 따른다. stage: 0 시간 경과 시작, 1 상황 발생, 2 시설 대응.
+        /// 건너뛰면 끝까지 본 것과 같은 최종 상태를 한 번만 적용한다.
+        /// </summary>
+        public void PlayScenario(FieldEvaluation result, Action<Sfx> sound, Action<int> stage, Action done)
+        {
+            StopRoutines();
+            ApplyState(result, 0f, 0f);
+            // 물이 찰 수 있는 웅덩이 위에 서 있었다면 충돌이 켜지기 전에 출발 지점으로 옮긴다(벽 안에 끼지 않게).
+            if (Player && puddles.Any(p => Mathf.Abs(PlayerPosition.x - p.collider.transform.localPosition.x) < ((BoxCollider2D)p.collider).size.x / 2 + PlayerRadius + 0.2f
+                                        && Mathf.Abs(PlayerPosition.y - p.collider.transform.localPosition.y) < ((BoxCollider2D)p.collider).size.y / 2 + PlayerRadius + 0.2f))
+                PlacePlayer(Mission.playerStart, Vector2.right);
+            pendingResult = result;
+            pendingDone = done;
+            scenario = StartCoroutine(ScenarioRoutine(result, sound, stage));
+        }
+
+        public void SkipScenario()
+        {
+            if (scenario == null) return;
+            var result = pendingResult;
+            var done = pendingDone;
+            ApplyInstant(result);
+            done?.Invoke();
+        }
+
+        IEnumerator ScenarioRoutine(FieldEvaluation result, Action<Sfx> sound, Action<int> stage)
+        {
+            stage?.Invoke(0);
+            yield return Animate(ScenarioPassSeconds, t => { hazard = Mathf.SmoothStep(0, 1, t); RenderAll(); });
+            stage?.Invoke(1);
+            sound?.Invoke(Sfx.Fail);
+            yield return Wait(ScenarioPeakSeconds);
+
+            stage?.Invoke(2);
+            // 센서가 상황을 감지하면 문제를 해결하는 시설만 신호를 낸다(해결하지 못하는 시설은 반응 대상이 없다).
+            foreach (var spot in Mission.spots)
+                if (result.Assignments.TryGetValue(spot.id, out var item) && spot.options.Any(o => o.itemId == item && o.solves.Count > 0))
+                    Ping(spot.position + new Vector2(0, 0.4f));
+            sound?.Invoke(Sfx.Install);
+            foreach (var site in sites.Values)
+            {
+                var r = site.reaction;
+                if (site.level < 1f || r == null || !r.moveResident) continue;
+                site.moveFrom = site.resident.root.localPosition;
+                site.moveTo = r.residentPosition;
+                site.anchor = r.residentPosition;
+                site.moveT = 0f;
+                site.cheerTimer = 0f;
+                site.reacted = true;
+            }
+            yield return Animate(ScenarioRespondSeconds, t => { respond = t; RenderAll(); });
+            yield return Wait(ScenarioSettleSeconds);
+
+            var done = pendingDone;
+            pendingDone = null;
+            scenario = null;
+            ApplyState(result, 1f, 1f);
+            done?.Invoke();
+        }
+
+        /// <summary>시설이 상황을 감지했다는 짧은 신호(퍼지는 고리).</summary>
+        void Ping(Vector2 at)
+        {
+            var ring = FieldArt.Ellipse(transform, "SensorPing", Theme.WithAlpha(Theme.TealPale, 0.9f), at, new Vector2(0.6f, 0.36f), FieldArt.OrderMarker);
+            Temp(ring.gameObject);
+            StartCoroutine(PingRoutine(ring, at));
+        }
+
+        IEnumerator PingRoutine(SpriteRenderer ring, Vector2 at)
+        {
+            float t = 0;
+            while (t < 0.9f && ring)
+            {
+                t += Delta();
+                float e = Mathf.Clamp01(t / 0.9f);
+                ring.transform.localScale = Vector3.one * Mathf.Lerp(1f, 4.5f, e);
+                ring.color = Theme.WithAlpha(Theme.TealPale, 0.9f * (1 - e));
+                yield return null;
+            }
+            if (ring) KillTemp(ring.gameObject);
         }
 
         void Sparkle(Vector2 at)
@@ -846,47 +999,155 @@ namespace ProcurementHero.Field
 
         // ───────── 그리기 ─────────
 
+        float Response(Site s) => s.level * respond;
+        float Intensity(Site s) => Mathf.Lerp(s.data.earlyLevel, 1f, hazard);
+
+        /// <summary>
+        /// 물에 잠긴 정도. 배수펌프는 상황이 온 뒤 고인 물을 빼고(대응), 모래주머니는 처음부터 물이 더 들어오지 않게 막는다
+        /// (이미 있던 얕은 물을 말리지는 않는다).
+        /// </summary>
+        float Water(Site s) => s.level > 0 && s.solvedBy == FieldItemVisual.Sandbags
+            ? s.data.earlyLevel
+            : Intensity(s) * (1f - Response(s));
+
+        /// <summary>센서 보행등이 해결한 어둠: 사람이 다가오면 밝게, 아니면 낮게 켜 둔다(보여 주기만, 판정과 무관).</summary>
+        float Sensor(Site s)
+        {
+            if (s.solvedBy != FieldItemVisual.WalkLight || s.solvedSpot == null) return 1f;
+            var at = Mission.Spot(s.solvedSpot).position;
+            bool near = Vector2.Distance(s.resident.root.localPosition, at) < 2.6f || (Player && Vector2.Distance(PlayerPosition, at) < 2.6f);
+            return near ? 1f : 0.55f;
+        }
+
+        void RenderAll()
+        {
+            foreach (var site in sites.Values) Render(site);
+            RenderEnvironment();
+        }
+
         void Render(Site s)
         {
-            float v = s.level;
+            float shown = Response(s);
+            float intensity = Intensity(s);
             switch (s.data.kind)
             {
                 case FieldProblemKind.Dark:
-                    s.overlay.color = Theme.WithAlpha(Theme.Hex(0x0B1026), Mathf.Lerp(0.66f, 0.05f, v));
-                    s.glow.color = Theme.WithAlpha(FieldArt.Lamp, 0.35f * v);
+                {
+                    float lit = shown * Sensor(s);
+                    s.overlay.color = Theme.WithAlpha(Theme.Hex(0x0B1026), intensity * Mathf.Lerp(0.66f, 0.05f, lit));
+                    s.glow.color = Theme.WithAlpha(FieldArt.Lamp, 0.35f * lit);
                     break;
+                }
                 case FieldProblemKind.Heat:
-                    // 그늘막으로 해결했으면 시원한 바람 대신 그늘 색으로 바뀐다.
-                    s.tint.color = Color.Lerp(Theme.WithAlpha(Theme.Heat, 0.32f),
-                        s.solvedBy == FieldItemVisual.Shade ? Theme.WithAlpha(Theme.Hex(0x7FA88A), 0.18f) : Theme.WithAlpha(Theme.Cool, 0.2f), v);
-                    foreach (var w in s.waves) w.color = Theme.WithAlpha(Theme.Heat, 0.8f * (1 - v));
-                    if (s.sweat) s.sweat.enabled = v < 0.5f;
+                {
+                    // 주민이 옮겨 가는 해결(그늘막 아래·현관 바람 앞)은 그 자리만 나아지고, 구역 전체가 시원해지지는 않는다.
+                    bool local = s.reaction != null && s.reaction.moveResident;
+                    var hot = Theme.WithAlpha(Theme.Heat, 0.32f * intensity);
+                    s.tint.color = local ? Theme.WithAlpha(Theme.Heat, 0.32f * intensity * (1f - 0.4f * shown))
+                        : Color.Lerp(hot, s.solvedBy == FieldItemVisual.Shade ? Theme.WithAlpha(Theme.Hex(0x7FA88A), 0.18f) : Theme.WithAlpha(Theme.Cool, 0.2f), shown);
+                    foreach (var w in s.waves) w.color = Theme.WithAlpha(Theme.Heat, 0.8f * intensity * (1 - shown));
+                    if (s.sweat) s.sweat.enabled = intensity * (1 - shown) > 0.5f;
+                    if (local && s.solvedBy != FieldItemVisual.Shade)
+                    {
+                        if (!s.patch)
+                            s.patch = FieldArt.Ellipse(transform, "CoolPatch_" + s.data.id, Color.clear, s.reaction.residentPosition + new Vector2(0.5f, -0.2f), new Vector2(3.2f, 1.6f), FieldArt.OrderFlat + 2);
+                        s.patch.color = Theme.WithAlpha(Theme.Cool, 0.4f * shown);
+                    }
+                    else if (s.patch) s.patch.color = Color.clear;
                     break;
+                }
                 case FieldProblemKind.Thirst:
-                    s.tint.color = Color.Lerp(Theme.WithAlpha(Theme.Danger, 0.12f), Theme.WithAlpha(Theme.Teal, 0.16f), v);
-                    // 빈 물통은 급수장치가 놓여 해결되면 치운다(물통이 저절로 차지 않는다).
-                    if (s.jug) s.jug.gameObject.SetActive(v < 0.99f);
+                    s.tint.color = Color.Lerp(Theme.WithAlpha(Theme.Danger, 0.12f * intensity), Theme.WithAlpha(Theme.Teal, 0.16f), shown);
+                    // 빈 물통은 이용객이 늘어 급수장치를 쓰기 시작하면 치운다(물통이 저절로 차지 않는다).
+                    if (s.jug) s.jug.gameObject.SetActive(shown < 0.99f);
                     break;
                 case FieldProblemKind.Power:
-                    s.glow.color = Theme.WithAlpha(FieldArt.Lamp, 0.3f * v);
+                {
+                    // 상황 전에는 평소 전기로 불이 켜져 있다. 정전이 오면 꺼지고, 비상전원이 준비된 곳만 자동 전환으로 다시 켜진다.
+                    bool outage = hazard >= 0.5f;
+                    bool lit = !outage || shown >= 0.5f;
+                    s.glow.color = Theme.WithAlpha(FieldArt.Lamp, 0.3f * shown);
                     for (int i = 0; i < s.windows.Count; i++)
-                        s.windows[i].color = v * s.windows.Count > i + 0.5f ? Theme.WindowLit : Theme.Window;
+                        s.windows[i].color = lit && (!outage || shown * s.windows.Count > i + 0.5f) ? Theme.WindowLit : Theme.Window;
                     break;
+                }
                 default:
-                    s.overlay.color = Theme.WithAlpha(Theme.Hex(0x4F99DB), Mathf.Lerp(0.62f, 0.06f, v));
-                    s.overlay.transform.localScale = new Vector3(Mathf.Lerp(1f, 0.85f, v), Mathf.Lerp(1f, 0.7f, v), 1);
-                    foreach (var w in s.waves) w.color = Theme.WithAlpha(Color.white, 0.6f * (1 - v));
+                {
+                    float water = Water(s);
+                    s.overlay.color = Theme.WithAlpha(Theme.Hex(0x4F99DB), 0.62f * water);
+                    s.overlay.transform.localScale = new Vector3(Mathf.Lerp(0.6f, 1f, water), Mathf.Lerp(0.45f, 1f, water), 1);
+                    foreach (var w in s.waves) w.color = Theme.WithAlpha(Color.white, 0.6f * Mathf.Clamp01(water * 1.5f - 0.2f));
                     break;
+                }
             }
-            // 배수로 해결된 문제에 묶인 물웅덩이는 그림과 충돌이 함께 사라진다(판정에서 온 level만 쓴다).
+            // 물웅덩이는 문제의 물높이를 그대로 따른다: 깊으면 길을 막고(충돌), 얕거나 빠지면 지나갈 수 있다.
             foreach (var p in puddles.Where(p => p.clearedBy == s.data.id))
             {
-                p.sprite.color = Theme.WithAlpha(Theme.Water, Theme.Water.a * (1 - v));
-                p.shine.color = Theme.WithAlpha(Color.white, 0.5f * (1 - v));
-                p.collider.enabled = v < 0.99f;
+                float water = s.data.kind == FieldProblemKind.Flood ? Water(s) : 1f - shown;
+                p.sprite.color = Theme.WithAlpha(Theme.Water, Theme.Water.a * water);
+                p.shine.color = Theme.WithAlpha(Color.white, 0.5f * water);
+                p.collider.enabled = water > 0.5f;
             }
-            s.resident.mark.color = v >= 0.99f ? Theme.Warning : Theme.NavySoft;
+            s.resident.mark.color = shown >= 0.99f ? Theme.Warning : Theme.NavySoft;
         }
+
+        /// <summary>하늘·해·비·창문·설치한 조명. 상황 진행(hazard)과 시설 대응(respond)만 따른다.</summary>
+        void RenderEnvironment()
+        {
+            switch (Mission.theme)
+            {
+                case FieldTheme.NightAlley:
+                    sky.color = Theme.WithAlpha(Theme.Hex(0x101838), 0.6f * hazard);
+                    foreach (var w in litWindows) w.color = Color.Lerp(Theme.Hex(0x8FB7D6), Theme.Hex(0xF6D98A), hazard);
+                    if (playerHalo) playerHalo.color = Theme.WithAlpha(Color.white, 0.3f * hazard);
+                    break;
+                case FieldTheme.Clinic:
+                    sky.color = Theme.WithAlpha(Theme.Hex(0xFFB15C), 0.14f * hazard);
+                    if (sun)
+                    {
+                        sun.color = Theme.WithAlpha(Theme.Hex(0xFFD36B), Mathf.Lerp(0.4f, 0.8f, hazard));
+                        sun.transform.localScale = Vector3.one * Mathf.Lerp(0.8f, 1.5f, hazard);
+                    }
+                    break;
+                default:
+                    sky.color = Theme.WithAlpha(Theme.Hex(0x223050), 0.32f * hazard);
+                    if (cloud) cloud.color = Theme.WithAlpha(Theme.Hex(0x45506A), Mathf.Lerp(0.18f, 0.5f, hazard));
+                    int shownDrops = Mathf.RoundToInt(rain.Count * Mathf.Lerp(0.3f, 1f, hazard));
+                    for (int i = 0; i < rain.Count; i++) rain[i].gameObject.SetActive(i < shownDrops);
+                    break;
+            }
+            // 설치한 조명은 상황(저녁)이 와야 켜진다. 보행등은 사람이 다가오면 더 밝아진다.
+            foreach (var pair in installed)
+            {
+                var item = Mission.Item(Plan(pair.Key));
+                if (item == null || (item.visual != FieldItemVisual.StreetLamp && item.visual != FieldItemVisual.WalkLight)) continue;
+                float on = respond;
+                if (item.visual == FieldItemVisual.WalkLight)
+                {
+                    var at = Mission.Spot(pair.Key).position;
+                    bool near = sites.Values.Any(x => Vector2.Distance(x.resident.root.localPosition, at) < 2.6f) || (Player && Vector2.Distance(PlayerPosition, at) < 2.6f);
+                    on *= near ? 1f : 0.45f;
+                }
+                foreach (var r in pair.Value.GetComponentsInChildren<SpriteRenderer>(true))
+                {
+                    if (r.name == "Halo") r.color = Theme.WithAlpha(FieldArt.Lamp, 0.7f * on);
+                    else if (r.name == "Bulb") r.color = Color.Lerp(Theme.Hex(0x9AA0B4), FieldArt.Lamp, on);
+                }
+            }
+            for (int i = 0; i < crowd.Count; i++)
+            {
+                var v = crowd[i];
+                bool visible = hazard > 0.05f;
+                v.rig.root.gameObject.SetActive(visible);
+                if (!visible) continue;
+                var pos = Vector2.Lerp(v.from, v.to, Mathf.Clamp01(hazard * 1.15f));
+                v.rig.root.localPosition = pos;
+                FieldArt.SetDepth(v.rig.root, pos.y - 0.45f);
+            }
+        }
+
+        readonly Dictionary<string, string> placedItems = new Dictionary<string, string>();
+        string Plan(string spotId) => placedItems.TryGetValue(spotId, out var item) ? item : null;
 
         void Update()
         {
@@ -898,23 +1159,41 @@ namespace ProcurementHero.Field
                 AnimateResident(s, dt);
                 if (s.data.kind == FieldProblemKind.Heat)
                 {
-                    if (s.level < 0.99f)
+                    if (Response(s) < 0.99f)
                         for (int i = 0; i < s.waves.Count; i++)
                             s.waves[i].transform.localPosition += new Vector3(Mathf.Sin(s.phase * 3f + i) * 0.4f * dt, 0, 0);
+                    // 냉방 바람: 구역 전체를 식히는 해결이면 구역 안에서, 현관 바람처럼 그 자리만 나아지는 해결이면 그 자리 둘레에서만 분다.
+                    bool local = s.reaction != null && s.reaction.moveResident;
+                    var area = local ? new Vector2(3.2f, 1.6f) : s.data.zoneSize;
+                    var center = local ? s.reaction.residentPosition + new Vector2(0.5f, 0.2f) : s.data.zoneCenter;
                     for (int i = 0; i < s.winds.Count; i++)
                     {
                         float ph = Mathf.Repeat(s.phase * 0.7f + i * 0.33f, 1f);
-                        var basePos = s.data.zoneCenter + new Vector2(-s.data.zoneSize.x * 0.35f, s.data.zoneSize.y * (0.2f - i * 0.2f));
-                        s.winds[i].transform.localPosition = basePos + new Vector2(ph * s.data.zoneSize.x * 0.6f, Mathf.Sin(ph * 6f) * 0.1f);
+                        var basePos = center + new Vector2(-area.x * 0.35f, area.y * (0.2f - i * 0.2f));
+                        s.winds[i].transform.localPosition = basePos + new Vector2(ph * area.x * 0.6f, Mathf.Sin(ph * 6f) * 0.1f);
                         float wind = s.solvedBy == FieldItemVisual.Shade ? 0f : 1f;
-                        s.winds[i].color = Theme.WithAlpha(Theme.Cool, 0.85f * s.level * wind * Mathf.Sin(ph * Mathf.PI));
+                        s.winds[i].color = Theme.WithAlpha(Theme.Cool, 0.85f * Response(s) * wind * Mathf.Sin(ph * Mathf.PI));
                     }
                 }
+                // 비상등: 상황 전에는 꺼져 있고, 정전이 오면 깜빡이며, 비상전원으로 전환되면 초록으로 켜진다.
                 if (s.beacon)
-                    s.beacon.color = s.level >= 0.99f ? Theme.Success : Theme.WithAlpha(Theme.Warning, Mathf.Repeat(s.phase * 2.5f, 1f) < 0.5f ? 1f : 0.2f);
-                if (s.data.kind == FieldProblemKind.Flood && s.level < 0.99f)
+                    s.beacon.color = Response(s) >= 0.99f ? Theme.Success
+                        : hazard < 0.5f ? Theme.WithAlpha(Theme.Warning, 0.15f)
+                        : Theme.WithAlpha(Theme.Warning, Mathf.Repeat(s.phase * 2.5f, 1f) < 0.5f ? 1f : 0.2f);
+                if (s.data.kind == FieldProblemKind.Flood && Water(s) > 0.2f)
                     for (int i = 0; i < s.waves.Count; i++)
                         s.waves[i].transform.localScale = new Vector3(1f + Mathf.Sin(s.phase * 2f + i) * 0.2f, 1, 1);
+            }
+
+            // 센서 보행등은 사람이 다가올 때마다 밝기가 바뀐다.
+            if (respond > 0f && Mission.theme == FieldTheme.NightAlley) RenderAll();
+            foreach (var v in crowd)
+            {
+                if (!v.rig.root.gameObject.activeSelf) continue;
+                bool walking = hazard < 0.85f && dt > 0;
+                FaceRig(v.rig, v.to.x - v.from.x);
+                if (walking) Walk(v.rig, Time.time * 9f);
+                else Stand(v.rig);
             }
 
             if (player != null && player.root.gameObject.activeSelf)
@@ -967,7 +1246,9 @@ namespace ProcurementHero.Field
         {
             var r = s.resident;
             var home = s.anchor;
-            bool solved = s.level >= 0.99f;
+            // 화면에서 '해결된 모습'은 시설이 대응한 뒤에만 나온다. 상황 전에는 초기 징후만 보인다.
+            bool solved = Response(s) >= 0.99f;
+            float intensity = Intensity(s);
             float t = s.phase;
             Vector2 pos = home;
             float bob = 0;
@@ -1014,12 +1295,24 @@ namespace ProcurementHero.Field
                         FaceRig(r, Mathf.Cos(t * 0.9f));
                         Walk(r, t * 9f);
                     }
+                    else if (s.data.kind == FieldProblemKind.Dark && intensity < 0.5f)
+                    {
+                        // 아직 밝은 오후: 평소처럼 서 있다.
+                        Stand(r);
+                        r.armFront.localRotation = Quaternion.Euler(0, 0, 8);
+                    }
                     else if (s.data.kind == FieldProblemKind.Dark)
                     {
-                        // 멈춰 서서 두리번거린다.
+                        // 어두워지자 멈춰 서서 두리번거리며 망설인다.
                         FaceRig(r, Mathf.Sin(t * 0.8f));
                         Stand(r);
                         r.armFront.localRotation = Quaternion.Euler(0, 0, 20);
+                    }
+                    else if (Water(s) < 0.5f)
+                    {
+                        // 얕은 물: 걱정스럽게 하늘을 본다.
+                        Stand(r);
+                        r.armFront.localRotation = Quaternion.Euler(0, 0, 30);
                     }
                     else
                     {
@@ -1042,7 +1335,8 @@ namespace ProcurementHero.Field
                     }
                     else
                     {
-                        r.armFront.localRotation = Quaternion.Euler(0, 0, 100 + Mathf.Sin(t * 16f) * 30f);
+                        // 더울수록 부채질이 빨라진다(상황 전에는 가볍게).
+                        r.armFront.localRotation = Quaternion.Euler(0, 0, 100 + Mathf.Sin(t * Mathf.Lerp(6f, 16f, intensity)) * 30f);
                         if (s.sweat) s.sweat.transform.localPosition = new Vector2(0.24f, 0.12f - Mathf.Repeat(t, 1f) * 0.25f);
                     }
                     break;
@@ -1058,6 +1352,8 @@ namespace ProcurementHero.Field
                     Stand(r);
                     if (solved)
                         r.armFront.localRotation = Quaternion.Euler(0, 0, 150 + Mathf.Sin(t * 6f) * 20f);
+                    else if (hazard < 0.5f)
+                        r.armFront.localRotation = Quaternion.Euler(0, 0, 8);
                     else
                     {
                         pos += new Vector2(Mathf.Sin(t * 40f) * 0.02f, 0);

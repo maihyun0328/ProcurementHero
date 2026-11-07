@@ -13,13 +13,21 @@ MonoBehaviour:
   m_Name: FieldMission2_Clinic
   m_EditorClassIdentifier: 
   id: f2
-  title: "\uC2DC\uC6D0\uD55C \uBCF4\uAC74\uC18C"
-  placeName: "\uC0C8\uBD04\uBCF4\uAC74\uC18C"
-  intro: "\uB354\uC6B4 \uACF3\uACFC \uBB3C\uC774 \uBAA8\uC790\uB780 \uACF3\uC744
-    \uCC3E\uC544 \uC7A5\uCE58\uB97C \uB193\uC744 \uC790\uB9AC\uB97C \uC815\uD574\uC694."
-  arrivalLine: "\uC774\uBC88\uC5D0\uB294 \uBCF4\uAC74\uC18C\uB97C \uD655\uC778\uD574
-    \uBCF4\uC790."
+  title: "\uD3ED\uC5FC\uBCF4\uB2E4 \uBA3C\uC800 \uC900\uBE44\uD558\uB294 \uBCF4\uAC74\uC18C"
+  placeName: "\uC0C8\uBD04\uC2DC \uBCF4\uAC74\uC18C"
+  intro: "\uC544\uC9C1 \uD55C\uC0B0\uD560 \uB54C \uB354\uC704\uC640 \uBB3C \uBD80\uC871\uC774
+    \uC62C \uACF3\uC744 \uD655\uC778\uD558\uACE0 \uC7A5\uCE58\uB97C \uB193\uC744
+    \uC790\uB9AC\uB97C \uC815\uD574\uC694."
+  arrivalLine: "\uC544\uC9C1\uC740 \uD55C\uC0B0\uD558\uB124. \uC624\uD6C4 \uB354\uC704
+    \uC804\uC5D0 \uB458\uB7EC\uBCF4\uC790."
   theme: 1
+  forecast: "14:00 \uD3ED\uC5FC \xB7 \uBCF4\uAC74\uC18C \uB300\uAE30 \uC778\uC6D0
+    \uC99D\uAC00 \uC608\uC0C1"
+  nowTime: 11:00
+  eventTime: 14:00
+  eventCaption: "\uD3ED\uC5FC \uACBD\uBCF4, \uBCF4\uAC74\uC18C \uB300\uAE30 \uC778\uC6D0\uC774
+    \uB298\uC5B4\uC694"
+  responseCaption: "\uC628\uB3C4 \uC13C\uC11C\uAC00 \uB354\uC704\uB97C \uAC10\uC9C0\uD588\uC5B4\uC694"
   budget: 85
   draftNumbers: 1
   playerStart: {x: 0, y: -7}
@@ -33,10 +41,13 @@ MonoBehaviour:
     zoneCenter: {x: -4.2, y: 3.6}
     zoneSize: {x: 11.4, y: 6.4}
     residentPosition: {x: -6.4, y: 4.8}
-    line: "\uB300\uAE30\uC2E4\uC774 \uB108\uBB34 \uB354\uC6CC\uC694"
+    line: "\uBC8C\uC368 \uBD80\uCC44\uC9C8\uC774 \uB098\uC624\uB124\uC694. \uC624\uD6C4\uC5D4
+      \uB354 \uB365\uACA0\uC8E0?"
+    eventLine: "\uB300\uAE30\uC2E4\uC774 \uB108\uBB34 \uB354\uC6CC\uC694"
     solvedLine: "\uC774\uC81C \uB300\uAE30\uC2E4\uC774 \uC2DC\uC6D0\uD574\uC84C\uC5B4\uC694"
-    memo: "\uC791\uC740 \uBC29\uC774\uB77C \uB0C9\uBC29\uC7A5\uCE58 \uD558\uB098\uBA74
-      \uCDA9\uBD84"
+    earlyLevel: 0.3
+    memo: "\uC2E4\uB0B4\uB9CC \uC2DD\uD790 \uB54C\uB294 \uC791\uC740 \uC7A5\uCE58\uB85C\uB3C4
+      \uCDA9\uBD84."
   - id: W
     displayName: "\uBCF5\uB3C4 \uC27C\uD130"
     kind: 2
@@ -46,9 +57,12 @@ MonoBehaviour:
     zoneCenter: {x: 6, y: 4.4}
     zoneSize: {x: 7.4, y: 5}
     residentPosition: {x: 6.4, y: 5.2}
-    line: "\uBB3C\uD1B5\uC774 \uBE44\uC5B4\uC11C \uB9C8\uC2E4 \uBB3C\uC774 \uC5C6\uC5B4\uC694"
+    line: "\uBB3C\uD1B5\uC774 \uBC8C\uC368 \uBE44\uC5C8\uC5B4\uC694. \uC0AC\uB78C\uC774
+      \uB298\uBA74 \uC5B4\uCA4C\uC8E0?"
+    eventLine: "\uBB3C\uD1B5\uC774 \uBE44\uC5B4\uC11C \uB9C8\uC2E4 \uBB3C\uC774 \uC5C6\uC5B4\uC694"
     solvedLine: "\uC774\uC81C \uBAA9\uB9C8\uB97C \uB54C \uBB3C\uC744 \uB9C8\uC2E4
-      \uC218 \uC788\uACA0\uC5B4\uC694"
+      \uC218 \uC788\uACA0\uC5B4\uC694."
+    earlyLevel: 1
     memo: "\uBCF5\uB3C4 \uC27C\uD130 \uBB3C\uD1B5\uC774 \uBE54"
   - id: O
     displayName: "\uBC14\uAE65 \uC904"
@@ -59,31 +73,39 @@ MonoBehaviour:
     zoneCenter: {x: -4, y: -3.4}
     zoneSize: {x: 6.4, y: 4.2}
     residentPosition: {x: -5.4, y: -3.4}
-    line: "\uD587\uBCD5 \uC544\uB798\uC11C \uAE30\uB2E4\uB9AC\uAE30 \uD798\uB4E4\uC5B4\uC694"
+    line: "\uC624\uD6C4\uC5D4 \uC5EC\uAE30 \uC904\uC774 \uAE38\uC5B4\uC9C4\uB300\uC694.
+      \uD587\uBCD5\uC774 \uAC71\uC815\uC774\uC5D0\uC694"
+    eventLine: "\uD587\uBCD5 \uC544\uB798\uC11C \uAE30\uB2E4\uB9AC\uAE30 \uD798\uB4E4\uC5B4\uC694"
     solvedLine: "\uC774\uC81C \uBC16\uC5D0\uC11C \uAE30\uB2E4\uB9AC\uAE30 \uD55C\uACB0
       \uB098\uC544\uC694"
-    memo: "\uB664\uC57D\uBCD5 \xB7 \uC5F4\uB9B0 \uD604\uAD00 \uBC14\uB85C \uC55E"
+    earlyLevel: 0.25
+    memo: "\uD604\uAD00\uC758 \uB113\uC740 \uC7A5\uCE58\uB294 \uBC14\uAE65 \uB300\uAE30
+      \uACF5\uAC04\uAE4C\uC9C0 \uB300\uC751."
   items:
   - id: aircon
     displayName: "\uB0C9\uBC29\uC7A5\uCE58"
     cost: 40
     visual: 2
     hint: "\uC2E4\uB0B4 \uD55C \uACF3 \uB0C9\uBC29"
+    responseLine: "\uB0C9\uBC29\uC7A5\uCE58\uAC00 \uCF1C\uC838\uC694"
   - id: bigcool
     displayName: "\uB300\uD615 \uB0C9\uBC29\uAE30"
     cost: 60
     visual: 9
     hint: "\uB113\uC740 \uB0C9\uBC29 \xB7 \uD604\uAD00\uC774\uBA74 \uBC14\uAE65\uAE4C\uC9C0"
+    responseLine: "\uB300\uD615 \uB0C9\uBC29\uAE30\uAC00 \uBC14\uB78C\uC744 \uBCF4\uB0B4\uC694"
   - id: water
     displayName: "\uAE09\uC218\uC7A5\uCE58"
     cost: 25
     visual: 3
     hint: "\uB9C8\uC2E4 \uBB3C"
+    responseLine: "\uC8FC\uBBFC\uC774 \uAE09\uC218\uC7A5\uCE58\uB97C \uC774\uC6A9\uD574\uC694"
   - id: shade
     displayName: "\uADF8\uB298\uB9C9"
     cost: 20
     visual: 4
     hint: "\uC2E4\uC678 \uD587\uBE5B \uAC00\uB9BC"
+    responseLine: "\uC8FC\uBBFC\uC774 \uADF8\uB298\uB9C9 \uC544\uB798\uB85C \uD53C\uD574\uC694"
   spots:
   - id: waiting
     displayName: "\uB300\uAE30\uC2E4 \uC548\uCABD"
@@ -175,7 +197,7 @@ MonoBehaviour:
   - spotId: hall
     itemId: bigcool
     problemId: O
-    line: "\uD604\uAD00 \uBC14\uB78C \uB355\uBD84\uC5D0 \uB35C \uB354\uC6CC\uC694."
+    line: "\uC5EC\uAE30\uC11C \uAE30\uB2E4\uB9AC\uB2C8 \uD55C\uACB0 \uB35C \uB365\uB124\uC694."
     moveResident: 1
     residentPosition: {x: -2.4, y: -1.2}
   - spotId: corridor
@@ -185,3 +207,6 @@ MonoBehaviour:
       \uC788\uACA0\uC5B4\uC694."
     moveResident: 1
     residentPosition: {x: 7.7, y: 4.5}
+  crowd:
+  - {x: 1.2, y: -4.4}
+  - {x: -0.9, y: -5.3}

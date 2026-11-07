@@ -19,13 +19,16 @@ namespace ProcurementHero.Field
         Explore,
         Notebook,
         Installing,
+        /// <summary>계획 승인·설치 뒤 시간이 흐르고 예측한 상황이 일어나 시설이 대응하는 단계. 이동·관찰·결과 진입은 막는다.</summary>
+        Scenario,
         Review,
         Result,
         Ending
     }
 
     /// <summary>
-    /// 타이틀 → 현장 탐색 → 수첩 계획 → 확정 → 설치 → 재확인 → 별 평가 → 다음 현장 → 엔딩.
+    /// 타이틀 → 출동·예측 확인 → 현장 탐색·관찰 → 수첩 계획(가상 실증) → 승인 → 배송·설치 → 시간 경과·상황 발생·시설 대응
+    /// → 재확인 → 별 평가 → 재계획 또는 다음 현장 → 엔딩.
     /// 현장은 SpriteRenderer와 Collider2D로, 수첩과 HUD는 uGUI로 만든다.
     /// </summary>
     public partial class FieldGame : MonoBehaviour
@@ -115,7 +118,7 @@ namespace ProcurementHero.Field
             get
             {
                 if (paused || modalStack.Count > 0) return 0f;
-                return State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Review
+                return State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Scenario || State == FieldState.Review
                        || State == FieldState.Title || State == FieldState.Arriving || State == FieldState.Ending
                     ? Time.deltaTime : 0f;
             }
@@ -142,6 +145,7 @@ namespace ProcurementHero.Field
         {
             var kb = Keyboard.current;
             if (kb == null) return;
+            KeepSelection(kb);
             HandleInput(kb);
             foreach (var key in TrackedKeys) heldLastFrame[key] = kb[key].isPressed;
         }
@@ -159,8 +163,9 @@ namespace ProcurementHero.Field
             {
                 inputLockFrame = Time.frameCount;
                 if (modalStack.Count > 0) CloseTopModal();
+                else if (State == FieldState.Notebook && recommendPanel) CloseRecommend();
                 else if (State == FieldState.Notebook) CloseNotebook();
-                else if (State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Review || State == FieldState.Arriving) OpenPause();
+                else if (State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Scenario || State == FieldState.Review || State == FieldState.Arriving) OpenPause();
                 return;
             }
 
@@ -184,6 +189,9 @@ namespace ProcurementHero.Field
                     break;
                 case FieldState.Installing:
                     if (Pressed(kb, Key.Space)) SkipInstall();
+                    break;
+                case FieldState.Scenario:
+                    if (Pressed(kb, Key.Space) || EnterPressed(kb)) SkipScenario();
                     break;
                 case FieldState.Review:
                     if (Pressed(kb, Key.E) || (EnterPressed(kb) && NothingSelected())) TryObserve();
@@ -250,9 +258,9 @@ namespace ProcurementHero.Field
         {
             if (State == FieldState.Review)
             {
-                bool solved = LastConfirmed != null && LastConfirmed.IsSolved(problem.id);
                 world.PlayObserve(problem);
-                ShowBubble(problem, solved ? world.SolvedLine(problem) : problem.line);
+                // 상황이 지난 뒤의 대사: 해결된 곳은 해결 대사, 남은 곳은 상황 대사(판정 결과가 정한 화면 상태를 따른다).
+                ShowBubble(problem, world.LineFor(problem));
                 sound.Play(Sfx.Observe);
                 if (!reviewChecked)
                 {
@@ -263,7 +271,7 @@ namespace ProcurementHero.Field
             }
             if (State != FieldState.Explore) return;
 
-            ShowBubble(problem, problem.line);
+            ShowBubble(problem, world.LineFor(problem));
             if (!observed.Add(problem.id)) return; // 다시 봐도 기록이나 기록 연출은 반복하지 않는다.
             if (!observedByMission.TryGetValue(MissionIndex, out var keep)) observedByMission[MissionIndex] = keep = new HashSet<string>();
             keep.Add(problem.id);
@@ -324,7 +332,47 @@ namespace ProcurementHero.Field
         // 종료 이벤트 하나에만 기대지 않는다: 진행이 바뀔 때마다 저장하고, 포커스를 잃거나 멈출 때도 남은 변경을 쓴다.
         void OnApplicationQuit() => FlushSave();
         void OnApplicationPause(bool pause) { if (pause) FlushSave(); }
-        void OnApplicationFocus(bool focus) { if (!focus) FlushSave(); }
+        void OnApplicationFocus(bool focus)
+        {
+            if (!focus) FlushSave();
+            else RestoreSelection();
+        }
+
+        // ───────── 키보드 선택 유지 ─────────
+
+        GameObject lastSelected;
+
+        /// <summary>버튼으로만 조작하는 화면(타이틀·수첩·결과·엔딩·창)인지. 현장 이동 화면은 선택을 일부러 비워 둔다.</summary>
+        bool MenuScreen => modalStack.Count > 0 || State == FieldState.Title || State == FieldState.Notebook || State == FieldState.Result || State == FieldState.Ending;
+
+        /// <summary>
+        /// 창 전환(Alt+Tab 등)이나 빈 곳 클릭으로 키보드 선택이 사라지면 Enter·방향키가 아무것도 하지 않게 된다.
+        /// 버튼 화면에서 선택이 비어 있을 때 키를 누르면 직전에 고른 버튼(아직 보이고 누를 수 있을 때)을 다시 고른다.
+        /// </summary>
+        void KeepSelection(Keyboard kb)
+        {
+            var es = EventSystem.current;
+            if (!es) return;
+            var current = es.currentSelectedGameObject;
+            if (current && current.activeInHierarchy)
+            {
+                lastSelected = current;
+                return;
+            }
+            if (!MenuScreen) return;
+            bool navKey = kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame || kb.spaceKey.wasPressedThisFrame
+                          || kb.upArrowKey.wasPressedThisFrame || kb.downArrowKey.wasPressedThisFrame || kb.leftArrowKey.wasPressedThisFrame || kb.rightArrowKey.wasPressedThisFrame;
+            if (navKey) RestoreSelection();
+        }
+
+        void RestoreSelection()
+        {
+            var es = EventSystem.current;
+            if (!es || !MenuScreen || (es.currentSelectedGameObject && es.currentSelectedGameObject.activeInHierarchy)) return;
+            if (lastSelected && lastSelected.activeInHierarchy && lastSelected.TryGetComponent(out Selectable s) && s.IsInteractable()
+                && s.navigation.mode != Navigation.Mode.None)
+                es.SetSelectedGameObject(lastSelected);
+        }
 
         /// <summary>저장 파일을 읽어 검증하고 메모리 진행에 적용한다. 손상·구버전이면 새 게임처럼 시작한다.</summary>
         public void LoadProgress()
@@ -428,7 +476,7 @@ namespace ProcurementHero.Field
             foreach (var id in observed) world.MarkObserved(id, true);
             world.ApplyInstant(result);
             BuildHud();
-            OnInstalled();
+            EnterReview();
         }
 
         /// <summary>현장 카메라 기본 구도(엔딩에서 잠깐 다가갔다가 화면이 바뀌면 되돌린다).</summary>
@@ -455,6 +503,8 @@ namespace ProcurementHero.Field
             magnifier = bubble = goalRow = reviewBanner = null;
             notebookButton = resultButton = skipButton = null;
             notebookRoot = null;
+            scenarioPanel = installBanner = null;
+            recommendPanel = null;
             if (world) Destroy(world.gameObject);
             world = null;
             SetState(next);
@@ -543,21 +593,30 @@ namespace ProcurementHero.Field
             RefreshHud();
         }
 
+        /// <summary>
+        /// 출동 알림: 현장 이름과 가상 AI 수첩 '내일'의 예측 한 줄. 예측은 미션 데이터에 정의된 문장이며 실제 AI 분석이 아니다.
+        /// 계획을 승인하기 전에는 시간이 흐르지 않으므로 카운트다운은 없다.
+        /// </summary>
         IEnumerator Intro()
         {
             var banner = UIKit.Panel(toastRoot, "Intro", Theme.WithAlpha(Theme.Navy, 0.92f));
-            banner.rectTransform.Region(0.25f, 0.62f, 0.75f, 0.8f);
+            banner.rectTransform.Region(0.24f, 0.6f, 0.76f, 0.8f);
+            FieldArt.ForecastIcon(banner.transform, 72).Place(new Vector2(0, 0.5f), new Vector2(64, 0), new Vector2(72, 72));
             var t = UIKit.Text(banner.transform, "Text",
-                $"<size=26><color=#{ColorUtility.ToHtmlStringRGB(Theme.TealPale)}>현장 {MissionIndex + 1} · {Mission.placeName}</color></size>\n<b>{Mission.title}</b>\n<size=24>{Mission.intro}</size>",
-                40, Color.white, TextAlignmentOptions.Center);
-            t.rectTransform.Fill(20, 20, 10, 10);
+                $"<size=24><color=#{ColorUtility.ToHtmlStringRGB(Theme.TealPale)}>현장 {MissionIndex + 1} · {Mission.placeName} · 지금 {Mission.nowTime}</color></size>\n<b>{Mission.title}</b>\n" +
+                $"<size=24><color=#{ColorUtility.ToHtmlStringRGB(Theme.Hex(0xF2C14E))}>AI 수첩 '내일' 예측</color>  {Mission.forecast}</size>",
+                36, Color.white, TextAlignmentOptions.Center);
+            t.rectTransform.Fill(120, 20, 10, 10);
+            t.enableAutoSizing = true;
+            t.fontSizeMin = 22;
+            t.fontSizeMax = 36;
             var group = banner.gameObject.AddComponent<CanvasGroup>();
             group.blocksRaycasts = false;
             float time = 0;
-            while (time < 3.2f && banner)
+            while (time < 3.6f && banner)
             {
                 time += Time.unscaledDeltaTime;
-                group.alpha = time > 2.6f ? (3.2f - time) / 0.6f : Mathf.Clamp01(time / 0.25f);
+                group.alpha = time > 3.0f ? (3.6f - time) / 0.6f : Mathf.Clamp01(time / 0.25f);
                 yield return null;
             }
             if (banner) Destroy(banner.gameObject);
@@ -569,7 +628,7 @@ namespace ProcurementHero.Field
         /// </summary>
         public bool ConfirmPlan()
         {
-            if (confirmLocked || State != FieldState.Notebook || notebookBusy) return false;
+            if (confirmLocked || State != FieldState.Notebook || notebookBusy || recommendPanel) return false;
             if (FieldRules.CanConfirm(Spec, Plan, observed) != ConfirmBlock.None) return false;
             confirmLocked = true;
             notebookBusy = true;
@@ -599,7 +658,7 @@ namespace ProcurementHero.Field
             SetState(FieldState.Installing);
             BuildInstallHud();
             sound.Play(Sfx.Confirm);
-            world.PlayInstall(snapshot, s => sound.Play(s), () => { if (token == screenToken) OnInstalled(); });
+            world.PlayInstall(snapshot, s => sound.Play(s), () => { if (token == screenToken) OnInstalled(snapshot, token); });
         }
 
         public void SkipInstall()
@@ -607,17 +666,90 @@ namespace ProcurementHero.Field
             if (State == FieldState.Installing && world) world.SkipInstall();
         }
 
-        void OnInstalled()
+        /// <summary>배송·설치가 끝났다. 이제 이야기상의 시간이 흐르고 예측한 상황이 일어난다(확정 스냅샷 그대로).</summary>
+        void OnInstalled(FieldEvaluation snapshot, int token)
         {
-            if (State != FieldState.Installing) return;
+            if (State != FieldState.Installing || token != screenToken) return;
+            SetState(FieldState.Scenario);
+            if (skipButton) Destroy(skipButton.gameObject);
+            skipButton = null;
+            if (installBanner) Destroy(installBanner.gameObject);
+            installBanner = null;
+            BuildScenarioHud();
+            world.PlayScenario(snapshot, s => sound.Play(s), stage => { if (token == screenToken) OnScenarioStage(stage); },
+                () => { if (token == screenToken) EnterReview(); });
+        }
+
+        public void SkipScenario()
+        {
+            if (State == FieldState.Scenario && world) world.SkipScenario();
+        }
+
+        /// <summary>상황이 모두 지나간 뒤(또는 이어하기로 그 상태를 되살린 뒤) 현장을 다시 걸으며 확인하는 단계.</summary>
+        void EnterReview()
+        {
+            if (State != FieldState.Installing && State != FieldState.Scenario) return;
             SetState(FieldState.Review);
             if (skipButton) Destroy(skipButton.gameObject);
             skipButton = null;
+            if (scenarioPanel) Destroy(scenarioPanel.gameObject);
+            scenarioPanel = null;
             reviewBanner = UIKit.Panel(hudRoot, "ReviewBanner", Theme.WithAlpha(Theme.Navy, 0.9f)).rectTransform;
             reviewBanner.Region(0.3f, 0.82f, 0.7f, 0.9f);
-            var t = UIKit.Text(reviewBanner, "Text", "설치 완료! 바뀐 현장을 걸어 보고, 문제였던 곳을 다시 살펴봐요 (E)", 24, Color.white, TextAlignmentOptions.Center);
+            var t = UIKit.Text(reviewBanner, "Text", $"{Mission.eventTime} 상황이 지나갔어요. 준비한 곳을 걸으며 다시 살펴봐요 (E)", 24, Color.white, TextAlignmentOptions.Center);
             t.rectTransform.Fill(14, 14, 4, 4);
+            t.enableAutoSizing = true;
+            t.fontSizeMin = 16;
+            t.fontSizeMax = 24;
             RefreshHud();
+        }
+
+        // ───────── 시간 경과 HUD ─────────
+
+        RectTransform scenarioPanel, installBanner;
+        TextMeshProUGUI scenarioClock, scenarioCaption;
+
+        void BuildScenarioHud()
+        {
+            scenarioPanel = UIKit.Panel(hudRoot, "Scenario", Theme.WithAlpha(Theme.Navy, 0.9f)).rectTransform;
+            scenarioPanel.Region(0.3f, 0.76f, 0.7f, 0.9f);
+            scenarioClock = UIKit.Text(scenarioPanel, "Clock", Mission.nowTime, 44, Theme.Hex(0xF2C14E), TextAlignmentOptions.Center, true);
+            scenarioClock.rectTransform.Region(0.02f, 0.05f, 0.26f, 0.95f);
+            scenarioCaption = UIKit.Text(scenarioPanel, "Caption", "시간이 흐르는 중…", 26, Color.white, TextAlignmentOptions.MidlineLeft);
+            scenarioCaption.rectTransform.Region(0.27f, 0.05f, 0.98f, 0.95f);
+            scenarioCaption.enableAutoSizing = true;
+            scenarioCaption.fontSizeMin = 16;
+            scenarioCaption.fontSizeMax = 26;
+            skipButton = UIKit.Button(hudRoot, "SkipScenario", "건너뛰기 (Space)", SkipScenario, ButtonStyle.Ghost, 24);
+            ((RectTransform)skipButton.transform).Region(0.42f, 0.69f, 0.58f, 0.75f);
+            Deselectable(skipButton);
+            StartCoroutine(TickClock(screenToken));
+        }
+
+        /// <summary>시계는 현장 상황(hazard)을 그대로 읽는다. 일시정지면 상황도 시계도 멈춘다.</summary>
+        IEnumerator TickClock(int token)
+        {
+            int from = Minutes(Mission.nowTime), to = Minutes(Mission.eventTime);
+            while (token == screenToken && State == FieldState.Scenario && scenarioClock && world)
+            {
+                int m = Mathf.RoundToInt(Mathf.Lerp(from, to, world.Hazard));
+                scenarioClock.text = $"{m / 60 % 24:00}:{m % 60:00}";
+                yield return null;
+            }
+        }
+
+        static int Minutes(string hhmm)
+        {
+            var parts = (hhmm ?? "").Split(':');
+            return parts.Length == 2 && int.TryParse(parts[0], out var h) && int.TryParse(parts[1], out var m) ? h * 60 + m : 0;
+        }
+
+        void OnScenarioStage(int stage)
+        {
+            if (!scenarioCaption) return;
+            scenarioCaption.text = stage == 0 ? "시간이 흐르는 중…"
+                : stage == 1 ? $"<b>{Mission.eventCaption}</b>"
+                : $"<b>{Mission.eventCaption}</b>\n<size=22>{Mission.responseCaption} · {Mission.ResponseSummary(LastConfirmed?.Assignments)}</size>";
         }
 
         void ShowResultButton()
@@ -637,6 +769,19 @@ namespace ProcurementHero.Field
             top.Region(0, 0.925f, 1, 1);
             var title = UIKit.Text(top, "Title", $"현장 {MissionIndex + 1} · {Mission.title}", 30, Color.white, TextAlignmentOptions.MidlineLeft, true);
             title.rectTransform.Region(0, 0, 0.3f, 1).offsetMin = new Vector2(28, 0);
+            title.enableAutoSizing = true;
+            title.fontSizeMin = 18;
+            title.fontSizeMax = 30;
+
+            // AI 수첩 '내일'의 예측: 짧게 늘 보이게(예상 무늬 아이콘 + 한 줄). 현장 확인 정보는 수첩에 따로 쌓인다.
+            var chip = UIKit.Panel(hudRoot, "Forecast", Theme.WithAlpha(Theme.Navy, 0.82f)).rectTransform;
+            chip.Region(0.008f, 0.86f, 0.3f, 0.918f);
+            FieldArt.ForecastIcon(chip, 40).Place(new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(40, 40));
+            var fc = UIKit.Text(chip, "Text", $"<color=#{ColorUtility.ToHtmlStringRGB(Theme.Hex(0xF2C14E))}>예측</color> {Mission.forecast}", 20, Color.white, TextAlignmentOptions.MidlineLeft);
+            fc.rectTransform.Fill(58, 10, 2, 2);
+            fc.enableAutoSizing = true;
+            fc.fontSizeMin = 13;
+            fc.fontSizeMax = 20;
 
             goalRow = UIKit.Rect(top, "Goals").Region(0.3f, 0.06f, 0.72f, 0.94f);
             UIKit.HorizontalList(goalRow, 12, null, TextAnchor.MiddleCenter, false);
@@ -685,7 +830,7 @@ namespace ProcurementHero.Field
             magnifier.gameObject.SetActive(false);
 
             bubble = UIKit.Panel(hudRoot, "Bubble", Theme.Paper).rectTransform;
-            bubble.sizeDelta = new Vector2(440, 76);
+            bubble.sizeDelta = new Vector2(520, 76);
             bubble.gameObject.AddComponent<Outline>().effectColor = Theme.WithAlpha(Theme.Navy, 0.4f);
             bubbleText = UIKit.Text(bubble, "Text", "", 26, Theme.Navy, TextAlignmentOptions.Center);
             bubbleText.rectTransform.Fill(14, 14, 4, 4);
@@ -732,6 +877,10 @@ namespace ProcurementHero.Field
 
         void BuildInstallHud()
         {
+            installBanner = UIKit.Panel(hudRoot, "InstallBanner", Theme.WithAlpha(Theme.Navy, 0.88f)).rectTransform;
+            installBanner.Region(0.3f, 0.76f, 0.7f, 0.81f);
+            UIKit.Text(installBanner, "Text", $"승인한 물품 배송·설치 중 · 상황은 아직이에요 (지금 {Mission.nowTime})", 22, Color.white, TextAlignmentOptions.Center, true)
+                .rectTransform.Fill(10, 10, 2, 2);
             skipButton = UIKit.Button(hudRoot, "SkipInstall", "설치 건너뛰기 (Space)", SkipInstall, ButtonStyle.Ghost, 26);
             // 배송 트럭이 다니는 아래쪽 길을 가리지 않도록 위쪽에 둔다.
             ((RectTransform)skipButton.transform).Region(0.38f, 0.82f, 0.62f, 0.9f);

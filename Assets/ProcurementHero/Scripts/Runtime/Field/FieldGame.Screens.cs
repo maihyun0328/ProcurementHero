@@ -38,10 +38,15 @@ namespace ProcurementHero.Field
 
             var title = UIKit.Text(card, "Title", "조달 히어로", 84, Theme.Navy, TextAlignmentOptions.Center, true);
             title.rectTransform.Region(0.05f, 0.66f, 0.95f, 0.8f);
-            var sub = UIKit.Text(card, "Sub", "현장 수첩 · 마을을 바꾸는 선택", 34, Theme.TealDark, TextAlignmentOptions.Center, true);
-            sub.rectTransform.Region(0.05f, 0.6f, 0.95f, 0.665f);
+            var sub = UIKit.Text(card, "Sub", "내일을 준비하는 수첩", 38, Theme.TealDark, TextAlignmentOptions.Center, true);
+            sub.rectTransform.Region(0.05f, 0.615f, 0.95f, 0.67f);
+            var era = UIKit.Text(card, "Era", "2038년 새봄시 · AI 수첩 '내일'과 함께 미리 준비하는 현장", 22, Theme.NavySoft, TextAlignmentOptions.Center);
+            era.rectTransform.Region(0.05f, 0.58f, 0.95f, 0.615f);
+            era.enableAutoSizing = true;
+            era.fontSizeMin = 14;
+            era.fontSizeMax = 22;
 
-            var list = UIKit.Rect(card, "Menu").Region(0.15f, 0.12f, 0.85f, 0.58f);
+            var list = UIKit.Rect(card, "Menu").Region(0.15f, 0.12f, 0.85f, 0.565f);
             UIKit.VerticalList(list, 12).childForceExpandHeight = true;
             var buttons = new List<Selectable>();
             var r = Resume;
@@ -54,7 +59,7 @@ namespace ProcurementHero.Field
             else if (r != null && r.HasProgress)
             {
                 var m = database.missions[r.Current];
-                string step = r.Phase == FieldSavePhase.Review ? "재확인" : r.Phase == FieldSavePhase.Replan ? "다시 계획" : "살펴보기";
+                string step = r.Phase == FieldSavePhase.Review ? "상황 후 재확인" : r.Phase == FieldSavePhase.Replan ? "다시 계획" : "살펴보기";
                 buttons.Add(UIKit.Button(list, "Continue", $"이어하기 · 현장 {r.Current + 1} {m.title} ({step})", ContinueGame));
                 buttons.Add(UIKit.Button(list, "NewGame", "처음부터 시작", ConfirmNewGame, ButtonStyle.Secondary));
             }
@@ -70,7 +75,7 @@ namespace ProcurementHero.Field
 
             titleRecord = UIKit.Text(card, "Record", RecordLabel(), 22, Theme.NavySoft, TextAlignmentOptions.Center);
             titleRecord.rectTransform.Region(0.05f, 0.05f, 0.95f, 0.11f);
-            var note = UIKit.Text(root, "Note", "조달정책을 소재로 한 창작 게임입니다 · 조달청 공식 제작물이 아닙니다", 20, Color.white, TextAlignmentOptions.Center);
+            var note = UIKit.Text(root, "Note", "가상의 2038년을 그린 창작 게임입니다 · 조달청의 공식 사업·미래 계획이나 공식 제작물이 아닙니다", 20, Color.white, TextAlignmentOptions.Center);
             note.rectTransform.Region(0.2f, 0.02f, 0.8f, 0.07f);
         }
 
@@ -234,10 +239,10 @@ namespace ProcurementHero.Field
             UIKit.Text(right, "Stars", stars, 92, Theme.Warning, TextAlignmentOptions.Center, true).rectTransform.Region(0.04f, 0.62f, 0.62f, 0.86f);
             UIKit.Text(right, "StarCount", $"별 {r.Stars}개" + (newBest ? "  · 새 기록!" : ""), 26, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0.04f, 0.56f, 0.62f, 0.63f);
 
-            string guide = r.Stars == 3 ? (MissionIndex + 1 >= database.missions.Count ? "모든 곳이 바뀌었어요! 마을의 하루를 확인해 봐요." : "모든 곳이 바뀌었어요! 다음 현장으로 가요.")
-                : r.Success ? "필요한 곳을 모두 해결했어요. 추가 목표도 해결하면 별 3개예요."
-                : r.Stars == 1 ? "아직 불편한 곳이 남았어요. 붉게 표시된 곳을 다시 계획해 봐요."
-                : "필수 문제를 해결하지 못했어요. 자리와 물품을 다시 골라 봐요.";
+            string guide = r.Stars == 3 ? (MissionIndex + 1 >= database.missions.Count ? "미리 준비한 덕분에 상황이 와도 모두 괜찮았어요! 새봄시의 하루를 확인해 봐요." : "미리 준비한 덕분에 상황이 와도 모두 괜찮았어요! 다음 현장으로 가요.")
+                : r.Success ? "필요한 곳은 모두 대비했어요. 추가 목표까지 준비하면 별 3개예요."
+                : r.Stars == 1 ? "상황이 오자 불편한 곳이 남았어요. 붉게 표시된 곳을 다시 계획해 봐요."
+                : "필수 문제에 대비하지 못했어요. 상황 전으로 돌아가 자리와 물품을 다시 골라 봐요.";
             UIKit.Text(right, "Guide", guide, 26, Theme.Navy, TextAlignmentOptions.Center).rectTransform.Region(0.07f, 0.3f, 0.93f, 0.5f);
 
             var bar = UIKit.Rect(right, "Buttons").Region(0.06f, 0.06f, 0.94f, 0.26f);
@@ -320,7 +325,8 @@ namespace ProcurementHero.Field
 
         // ───────── 엔딩 ─────────
 
-        public const string EndingLine = "필요한 곳에, 필요한 물품을.";
+        public const string EndingLine = "내일의 불편을 줄이는 오늘의 조달.";
+        public const string EndingNotebookLine = "AI는 내일을 예측하고, 우리는 현장을 확인해 필요한 선택을 합니다.";
         const float EndingSceneSeconds = 3.2f;
 
         Button endingSkip;
@@ -551,7 +557,11 @@ namespace ProcurementHero.Field
                     28, Theme.Navy, TextAlignmentOptions.MidlineLeft).rectTransform.Fill(90, 0, 0, 0);
             }
             UIKit.Text(book.right, "Total", $"별 ★ {endingTotal} / {Progress.MaxStars}", 40, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0.06f, 0.55f, 0.94f, 0.7f);
-            UIKit.Text(book.right, "Line", "새봄마을 현장 기록 끝", 28, Theme.NavySoft, TextAlignmentOptions.Center).rectTransform.Region(0.06f, 0.4f, 0.94f, 0.52f);
+            var closing = UIKit.Text(book.right, "Line", EndingNotebookLine, 26, Theme.NavySoft, TextAlignmentOptions.Center);
+            closing.rectTransform.Region(0.08f, 0.28f, 0.92f, 0.52f);
+            closing.enableAutoSizing = true;
+            closing.fontSizeMin = 18;
+            closing.fontSizeMax = 26;
             return last;
         }
 
@@ -724,7 +734,7 @@ namespace ProcurementHero.Field
         public void OpenPause()
         {
             if (paused || modalStack.Count > 0) return;
-            if (State != FieldState.Explore && State != FieldState.Installing && State != FieldState.Review && State != FieldState.Arriving) return;
+            if (State != FieldState.Explore && State != FieldState.Installing && State != FieldState.Scenario && State != FieldState.Review && State != FieldState.Arriving) return;
             SetPaused(true);
             var modal = OpenModal("일시정지", 0.32f, 0.62f);
             modal.isPause = true;
@@ -758,18 +768,19 @@ namespace ProcurementHero.Field
                 var t = UIKit.Text(cell, "Text", label, 22, Theme.Navy, TextAlignmentOptions.Center, true);
                 t.rectTransform.Region(0.04f, 0.02f, 0.96f, 0.38f);
             }
-            Step("① 걸어 다니며\n문제 찾기", a => FieldArt.ProblemIcon(a, FieldProblemKind.Dark, 90).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(90, 90)));
-            Step("② 가까이 가서\n살펴보기 (E)", a => FieldArt.Magnifier(a, 90).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(90, 90)));
+            Step("① AI 예측 확인\n(앞으로의 위험)", a => FieldArt.ForecastIcon(a, 90).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(90, 90)));
+            Step("② 가까이 가서\n현장 확인 (E)", a => FieldArt.Magnifier(a, 90).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(90, 90)));
             Step("③ 수첩에서 자리와\n물품 체크 (Tab)", a => FieldArt.Tick(a, 80, Theme.TealDark).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(80, 80)));
-            Step("④ 계획 확정 후\n설치 보기", a => FieldArt.ItemIcon(a, FieldItemVisual.StreetLamp, 90).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(90, 90)));
-            Step("⑤ 바뀐 현장을\n다시 살피고 별 받기", a => UIKit.Text(a, "Star", "★★☆", 44, Theme.Warning, TextAlignmentOptions.Center, true).rectTransform.Fill());
+            Step("④ 승인·설치 후\n시간이 흘러 상황 발생", a => FieldArt.ItemIcon(a, FieldItemVisual.StreetLamp, 90).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(90, 90)));
+            Step("⑤ 준비가 통했는지\n살피고 별 받기", a => UIKit.Text(a, "Star", "★★☆", 44, Theme.Warning, TextAlignmentOptions.Center, true).rectTransform.Fill());
 
             var text = UIKit.Text(body, "Keys",
                 "<b>이동</b> WASD · 방향키    <b>살펴보기</b> E · Enter · 돋보기 클릭    <b>수첩</b> Tab · 수첩 버튼\n" +
-                "<b>수첩</b> 방향키로 이동 · Enter로 선택    <b>닫기</b> Esc · Tab (계획은 그대로)    <b>설치 건너뛰기</b> Space\n" +
+                "<b>수첩</b> 방향키로 이동 · Enter로 선택    <b>닫기</b> Esc · Tab (계획은 그대로)    <b>설치·상황 건너뛰기</b> Space\n" +
+                "계획을 승인하기 전에는 시간이 흐르지 않아요. 승인하면 물품이 놓이고, 시간이 흐른 뒤 예측한 상황이 와야 준비한 시설이 작동해요.\n" +
                 "<b>별</b> ★★★ 필수 문제와 추가 목표 모두 · ★★ 필수 문제 모두 · ★ 필수 문제 일부 · ☆ 해결 없음\n" +
                 "한 자리에는 물품 하나. 다시 누르면 취소, 다른 물품을 누르면 교체. 예산을 넘으면 확정할 수 없어요.\n" +
-                "<size=20><color=#55607E>※ 물품·비용·평가 규칙은 게임을 위한 창작이며 실제 조달 절차를 재현하지 않아요.</color></size>",
+                "<size=20><color=#55607E>※ AI 수첩 '내일'의 예측은 게임에 정해 둔 데이터예요. 물품·비용·평가 규칙은 창작이며 실제 조달 절차를 재현하지 않아요.</color></size>",
                 24, Theme.Navy, TextAlignmentOptions.TopLeft);
             text.rectTransform.Region(0, 0, 1, 0.48f);
             text.lineSpacing = 12;
@@ -835,10 +846,11 @@ namespace ProcurementHero.Field
         {
             var modal = OpenModal("작품 소개와 출처", 0.64f, 0.84f);
             var t = UIKit.Text(modal.body, "Text",
-                "<b>조달 히어로 · 현장 수첩</b>\n" +
-                "공공구매의 가치를 알리기 위한 창작 게임입니다.\n실제 계약 절차·평가 방식·제품 성능을 재현하지 않습니다.\n\n" +
-                "· 플레이어는 조달청에서 현장 지원을 나온 담당자라는 가상 설정이에요.\n" +
-                "· 새봄마을, 모든 물품과 비용, 별 평가는 게임을 위한 창작 규칙이에요.\n" +
+                "<b>조달 히어로: 내일을 준비하는 수첩</b>\n" +
+                "'예측하고 미리 준비하는 조달'을 상상해 본 창작 게임입니다.\n실제 계약 절차·평가 방식·제품 성능, 조달청의 공식 사업이나 확정된 미래 계획을 나타내지 않습니다.\n\n" +
+                "· 2038년 가상 조달청의 지역 현장 담당자와 AI 수첩 '내일'은 가상 설정이에요.\n" +
+                "· '내일'의 예측은 게임에 정해 둔 문장과 규칙이며, 실제 AI가 분석하거나 학습하지 않아요.\n" +
+                "· 새봄시, 모든 물품과 비용, 별 평가는 게임을 위한 창작 규칙이에요.\n" +
                 "· 조달청이 승인하거나 공식 제작한 게임이 아니에요. 공식 캐릭터와 로고를 쓰지 않았어요.\n\n" +
                 "<b>정책 참고자료</b>\n조달청, 2026-08-18 혁신제품 시범구매 관련 보도자료\n<size=20>" + PolicyUrl + "</size>\n\n" +
                 "<b>글꼴</b>  Pretendard (길형진, SIL Open Font License 1.1)\n" +

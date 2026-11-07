@@ -60,8 +60,11 @@ namespace ProcurementHero.Field
         [Tooltip("문제가 보이는 구역(어둠·더위·물). 해결되면 바뀐다.")] public Vector2 zoneCenter;
         public Vector2 zoneSize = new Vector2(4, 4);
         public Vector2 residentPosition;
-        [TextArea(1, 2)] public string line;
+        [Tooltip("상황 전(지금) 주민 대사: 앞으로의 불편을 알려 주는 초기 징후")] [TextArea(1, 2)] public string line;
+        [Tooltip("예상한 상황이 일어난 뒤 해결하지 못했을 때 대사. 비우면 line")] [TextArea(1, 2)] public string eventLine;
         [TextArea(1, 2)] public string solvedLine;
+        [Tooltip("상황 전에 보이는 초기 징후 세기(0: 아직 없음, 1: 이미 심함). 상황이 일어나면 1이 된다.")]
+        [Range(0, 1)] public float earlyLevel;
         [Tooltip("관찰 후 수첩에 남는 한 줄 메모")] public string memo;
     }
 
@@ -73,6 +76,7 @@ namespace ProcurementHero.Field
         public int cost;
         public FieldItemVisual visual;
         [Tooltip("수첩에서 그림 옆에 붙는 짧은 특징(예: 넓게 밝힘).")] public string hint;
+        [Tooltip("상황이 일어났을 때 이 물품이 자동으로 대응하는 모습 한 줄(예: 배수펌프가 물을 빼요)")] public string responseLine;
     }
 
     [Serializable]
@@ -133,6 +137,11 @@ namespace ProcurementHero.Field
         [TextArea(1, 2)] public string intro;
         [Tooltip("현장 도착 때 담당자가 하는 한 문장")] public string arrivalLine;
         public FieldTheme theme;
+        [Tooltip("가상 AI 수첩 '내일'의 예측 한 줄(정의된 데이터, 실제 AI 분석 아님)")] public string forecast;
+        [Tooltip("현장에 도착한 지금 시각(이야기상의 시간, HH:MM)")] public string nowTime = "15:00";
+        [Tooltip("예측한 상황이 일어나는 시각(HH:MM). 계획을 승인하기 전에는 시간이 흐르지 않는다.")] public string eventTime = "18:00";
+        [Tooltip("상황 발생 안내(시간 경과 뒤 한 줄)")] public string eventCaption;
+        [Tooltip("센서가 상황을 감지했다는 안내. 그 뒤에 실제로 설치해 문제를 해결하는 물품의 대응 문구만 붙는다.")] public string responseCaption;
         public int budget;
         [Tooltip("개발 초안 수치인지(기획서에서 확정되지 않은 값)")] public bool draftNumbers;
         public Vector2 playerStart;
@@ -143,6 +152,8 @@ namespace ProcurementHero.Field
         public List<FieldPath> paths = new List<FieldPath>();
         [Tooltip("물품·자리별 주민 반응. 목록 순서가 우선순위다(같은 문제에 둘 이상 맞으면 앞의 것)")]
         public List<FieldReaction> reactions = new List<FieldReaction>();
+        [Tooltip("상황이 일어날 때 늘어나는 이용객(장식용, 판정과 무관)의 머무는 자리")]
+        public List<Vector2> crowd = new List<Vector2>();
 
         public FieldProblemEntry Problem(string problemId) => problems.FirstOrDefault(p => p.id == problemId);
         public FieldItemEntry Item(string itemId) => items.FirstOrDefault(i => i.id == itemId);
@@ -163,6 +174,24 @@ namespace ProcurementHero.Field
                 if (option != null && option.solves.Contains(problemId)) return r;
             }
             return null;
+        }
+
+        /// <summary>
+        /// 상황 발생 뒤 안내: 확정 배정 중 실제로 문제를 해결하는 물품의 대응 문구만 모은다(설치하지 않은 물품은 말하지 않는다).
+        /// </summary>
+        public string ResponseSummary(IReadOnlyDictionary<string, string> assignments)
+        {
+            var lines = new List<string>();
+            if (assignments != null)
+                foreach (var spot in spots)
+                {
+                    if (!assignments.TryGetValue(spot.id, out var itemId)) continue;
+                    var option = spot.options.FirstOrDefault(o => o.itemId == itemId);
+                    var item = Item(itemId);
+                    if (option == null || option.solves.Count == 0 || item == null || string.IsNullOrEmpty(item.responseLine)) continue;
+                    if (!lines.Contains(item.responseLine)) lines.Add(item.responseLine);
+                }
+            return lines.Count > 0 ? string.Join(" · ", lines) : "대비한 시설이 없어 불편이 그대로예요";
         }
 
         public FieldMissionSpec ToSpec()

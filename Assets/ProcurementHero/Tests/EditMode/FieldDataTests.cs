@@ -122,9 +122,10 @@ namespace ProcurementHero.Tests
         public void ClinicCoolingCluesMatchRealEffects()
         {
             var m = M("f2");
-            // 관찰 메모: 대기실은 작은 방이라 냉방장치 하나면 충분, 바깥 줄은 열린 현관 바로 앞.
-            StringAssert.Contains("냉방장치 하나면 충분", m.Problem("H").memo);
+            // 관찰 메모: 실내만 식힐 때는 작은 장치로 충분, 현관의 넓은 장치는 바깥 대기 공간까지.
+            StringAssert.Contains("작은 장치로도 충분", m.Problem("H").memo);
             StringAssert.Contains("현관", m.Problem("O").memo);
+            StringAssert.Contains("바깥", m.Problem("O").memo);
             StringAssert.Contains("현관", m.Item("bigcool").hint);
             // 설명과 효과가 어긋나지 않는다: 대형 냉방기는 현관에서만 바깥까지, 냉방장치는 어디서나 실내 한 곳.
             foreach (var spot in m.spots)
@@ -205,9 +206,12 @@ namespace ProcurementHero.Tests
                 CollectionAssert.AreEqual(seed.Data.obstacles.Select(o => o.clearedBy ?? ""), asset.obstacles.Select(o => o.clearedBy ?? ""), asset.name);
                 Assert.AreEqual(seed.Data.title, asset.title, asset.name);
                 Assert.AreEqual(seed.Data.arrivalLine, asset.arrivalLine, asset.name);
-                CollectionAssert.AreEqual(seed.Data.problems.Select(p => p.line + "|" + p.solvedLine + "|" + p.residentPosition + "|" + p.memo),
-                    asset.problems.Select(p => p.line + "|" + p.solvedLine + "|" + p.residentPosition + "|" + p.memo), asset.name);
-                CollectionAssert.AreEqual(seed.Data.items.Select(i => i.hint), asset.items.Select(i => i.hint), asset.name);
+                CollectionAssert.AreEqual(seed.Data.problems.Select(p => p.line + "|" + p.eventLine + "|" + p.solvedLine + "|" + p.earlyLevel + "|" + p.residentPosition + "|" + p.memo),
+                    asset.problems.Select(p => p.line + "|" + p.eventLine + "|" + p.solvedLine + "|" + p.earlyLevel + "|" + p.residentPosition + "|" + p.memo), asset.name);
+                Assert.AreEqual(seed.Data.forecast + seed.Data.nowTime + seed.Data.eventTime + seed.Data.eventCaption + seed.Data.responseCaption,
+                    asset.forecast + asset.nowTime + asset.eventTime + asset.eventCaption + asset.responseCaption, asset.name);
+                CollectionAssert.AreEqual(seed.Data.crowd, asset.crowd, asset.name);
+                CollectionAssert.AreEqual(seed.Data.items.Select(i => i.hint + "|" + i.responseLine), asset.items.Select(i => i.hint + "|" + i.responseLine), asset.name);
                 CollectionAssert.AreEqual(seed.Data.spots.Select(sp => sp.id + "@" + sp.position), asset.spots.Select(sp => sp.id + "@" + sp.position), asset.name);
                 CollectionAssert.AreEqual(seed.Data.reactions.Select(r => $"{r.spotId}/{r.itemId}/{r.problemId}/{r.line}/{r.moveResident}/{r.residentPosition}"),
                     asset.reactions.Select(r => $"{r.spotId}/{r.itemId}/{r.problemId}/{r.line}/{r.moveResident}/{r.residentPosition}"), asset.name);
@@ -222,14 +226,15 @@ namespace ProcurementHero.Tests
             var world = FieldWorld.Build(null, m, true);
             try
             {
-                Assert.IsTrue(world.PuddleBlocking("R"));
-                Assert.IsTrue(world.PuddleBlocking("B"));
+                Assert.IsFalse(world.PuddleBlocking("R"), "상황 전에는 얕게 고인 물이라 지나갈 수 있다");
+                Assert.IsFalse(world.PuddleBlocking("B"));
                 world.ApplyInstant(Eval(m, ("door", "pump")));
-                Assert.IsFalse(world.PuddleBlocking("R"), "정문 길 배수 후 관련 물웅덩이는 통행 가능");
-                Assert.IsTrue(world.PuddleBlocking("B"), "관련 없는 물웅덩이는 남는다");
+                Assert.IsFalse(world.PuddleBlocking("R"), "폭우 뒤에도 배수한 정문 길은 통행 가능");
+                Assert.IsTrue(world.PuddleBlocking("B"), "대비하지 않은 보조 통로는 폭우 뒤 물이 차 막힌다");
                 Assert.AreEqual(1, world.InstalledCount);
                 world.ApplyInstant(null);
-                Assert.IsTrue(world.PuddleBlocking("R"), "설치 전 상태로 되돌리면 다시 막힌다");
+                Assert.IsFalse(world.PuddleBlocking("R"), "재계획(상황 전)으로 되돌리면 다시 얕은 물");
+                Assert.IsFalse(world.PuddleBlocking("B"));
                 Assert.AreEqual(0, world.InstalledCount);
             }
             finally
@@ -327,15 +332,21 @@ namespace ProcurementHero.Tests
             var m = M("f3");
             var plan = Eval(m, ("panel", "generator"), ("door", "pump"), ("detour", "sandbags"));
             string Snapshot(FieldWorld w) =>
-                $"{w.InstalledCount}|{string.Join(",", w.InstalledSpots.OrderBy(x => x))}|R:{w.PuddleBlocking("R")}|B:{w.PuddleBlocking("B")}|" +
-                string.Join(",", m.problems.Select(p => p.id + "=" + w.SiteLevel(p.id) + "@" + w.ResidentAnchor(p.id)));
+                $"{w.InstalledCount}|{string.Join(",", w.InstalledSpots.OrderBy(x => x))}|R:{w.PuddleBlocking("R")}|B:{w.PuddleBlocking("B")}|H{w.Hazard}|S{w.Respond}|" +
+                string.Join(",", m.problems.Select(p => p.id + "=" + w.SiteLevel(p.id) + "/" + w.SiteShown(p.id) + "@" + w.ResidentAnchor(p.id)));
             string skipped = WithWorld(m, world =>
             {
-                int calls = 0;
+                int calls = 0, scenarioCalls = 0;
                 world.PlayInstall(plan, null, () => calls++);
                 world.SkipInstall();
                 world.SkipInstall();
                 Assert.AreEqual(1, calls, "완료 콜백은 한 번만");
+                Assert.AreEqual(0, world.TempObjectCount);
+                Assert.IsTrue(m.problems.All(p => world.SiteShown(p.id) == 0f), "설치만 끝난 상태에서는 해결 모습이 없다");
+                world.PlayScenario(plan, null, null, () => scenarioCalls++);
+                world.SkipScenario();
+                world.SkipScenario();
+                Assert.AreEqual(1, scenarioCalls, "상황 완료 콜백도 한 번만");
                 Assert.AreEqual(0, world.TempObjectCount);
                 return Snapshot(world);
             });
