@@ -206,6 +206,16 @@ namespace ProcurementHero.EditorTools
             m3.eventCaption = "비가 거세지고 전력 공급이 끊겼어요";
             m3.responseCaption = "정전·수위 센서가 상황을 감지했어요";
             m3.crowd = new List<Vector2> { new Vector2(-0.6f, 1.5f) };
+            // 대피하러 오는 주민: 큰길을 따라 와서 정문 진입로 앞(물 밖)에서 기다리고, 진입로 배수(R)가 실제로 해결되어
+            // 펌프가 작동한 뒤에만 진입로 가운데로 올라가 대피소 앞에 선다. 진입로 끝 대형 펌프(-2.4,-5.4)와 웅덩이(-3.4,-2.6)를 피한다.
+            m3.crowdRoutes = new List<FieldCrowdRoute>
+            {
+                new FieldCrowdRoute
+                {
+                    visitor = 0, needsProblem = "R", start = new Vector2(-12f, -6.7f), waitAt = new Vector2(-3.6f, -6.7f),
+                    via = new List<Vector2> { new Vector2(0f, -6.6f), new Vector2(0f, 0.9f) }
+                }
+            };
             m3.budget = 85;
             m3.draftNumbers = true;
             m3.playerStart = new Vector2(-14f, -6.5f);

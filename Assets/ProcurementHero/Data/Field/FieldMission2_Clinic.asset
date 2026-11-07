@@ -210,3 +210,4 @@ MonoBehaviour:
   crowd:
   - {x: 1.2, y: -4.4}
   - {x: -0.9, y: -5.3}
+  crowdRoutes: []

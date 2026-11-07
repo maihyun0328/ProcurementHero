@@ -211,6 +211,8 @@ namespace ProcurementHero.Tests
                 Assert.AreEqual(seed.Data.forecast + seed.Data.nowTime + seed.Data.eventTime + seed.Data.eventCaption + seed.Data.responseCaption,
                     asset.forecast + asset.nowTime + asset.eventTime + asset.eventCaption + asset.responseCaption, asset.name);
                 CollectionAssert.AreEqual(seed.Data.crowd, asset.crowd, asset.name);
+                CollectionAssert.AreEqual(seed.Data.crowdRoutes.Select(r => $"{r.visitor}/{r.needsProblem}/{r.start}/{r.waitAt}/{string.Join(";", r.via)}"),
+                    asset.crowdRoutes.Select(r => $"{r.visitor}/{r.needsProblem}/{r.start}/{r.waitAt}/{string.Join(";", r.via)}"), asset.name);
                 CollectionAssert.AreEqual(seed.Data.items.Select(i => i.hint + "|" + i.responseLine), asset.items.Select(i => i.hint + "|" + i.responseLine), asset.name);
                 CollectionAssert.AreEqual(seed.Data.spots.Select(sp => sp.id + "@" + sp.position), asset.spots.Select(sp => sp.id + "@" + sp.position), asset.name);
                 CollectionAssert.AreEqual(seed.Data.reactions.Select(r => $"{r.spotId}/{r.itemId}/{r.problemId}/{r.line}/{r.moveResident}/{r.residentPosition}"),

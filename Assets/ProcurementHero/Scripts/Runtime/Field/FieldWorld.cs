@@ -77,7 +77,7 @@ namespace ProcurementHero.Field
         float hazard, respond;
         SpriteRenderer sky, sun, cloud, playerHalo;
         readonly List<SpriteRenderer> litWindows = new List<SpriteRenderer>();
-        class Visitor { public Rig rig; public Vector2 from, to; }
+        class Visitor { public Rig rig; public Vector2 from, to; public FieldCrowdRoute route; public Vector2 last; public bool moving; }
         readonly List<Visitor> crowd = new List<Visitor>();
         float observePose, observeTimer, notebookPose;
 
@@ -456,7 +456,9 @@ namespace ProcurementHero.Field
                 var rig = BuildPerson(from, Mission.problems.Count + i + 1, false);
                 rig.mark.enabled = false;
                 rig.root.gameObject.SetActive(false);
-                crowd.Add(new Visitor { rig = rig, from = from, to = to });
+                var route = Mission.crowdRoutes.FirstOrDefault(r => r.visitor == i);
+                if (route != null) from = route.start;
+                crowd.Add(new Visitor { rig = rig, from = from, to = to, route = route, last = from });
                 i++;
             }
         }
@@ -471,6 +473,48 @@ namespace ProcurementHero.Field
         public float SiteShown(string problemId) => sites.TryGetValue(problemId, out var s) ? Response(s) : -1f;
         /// <summary>장식용 이용객 중 지금 보이는 수(검증용).</summary>
         public int VisibleCrowd => crowd.Count(v => v.rig.root.gameObject.activeSelf);
+        /// <summary>장식용 이용객의 지금 위치(검증용).</summary>
+        public Vector2 CrowdPosition(int index) => crowd[index].rig.root.localPosition;
+
+        /// <summary>
+        /// 확인용: 확정 결과를 상황 진행·시설 대응의 중간 값으로 적용한다(연출 중 한 프레임과 같은 상태).
+        /// 판정은 result 그대로이며 게임 진행에는 쓰지 않는다.
+        /// </summary>
+        public void ApplyStage(FieldEvaluation result, float hazardLevel, float respondLevel)
+        {
+            StopRoutines();
+            ApplyState(result, Mathf.Clamp01(hazardLevel), Mathf.Clamp01(respondLevel));
+        }
+
+        /// <summary>
+        /// 이용객 위치. 조건부 길이 있으면: 상황 진행만큼 대기 지점까지 오고, 필요한 문제가 확정 계획으로 해결된 경우에만
+        /// 시설 대응만큼 목적지로 간다(해결 안 됐으면 대기 지점에 머문다). 없으면 아래에서 곧장 걸어온다.
+        /// </summary>
+        Vector2 VisitorPosition(Visitor v)
+        {
+            if (v.route == null) return Vector2.Lerp(v.from, v.to, Mathf.Clamp01(hazard * 1.15f));
+            var approach = Mathf.Clamp01(hazard * 1.15f);
+            if (approach < 1f || !sites.TryGetValue(v.route.needsProblem ?? "", out var need) || need.level < 1f)
+                return Vector2.Lerp(v.route.start, v.route.waitAt, approach);
+            var points = new List<Vector2> { v.route.waitAt };
+            points.AddRange(v.route.via);
+            points.Add(v.to);
+            return AlongPath(points, respond);
+        }
+
+        static Vector2 AlongPath(List<Vector2> points, float t)
+        {
+            float total = 0;
+            for (int i = 1; i < points.Count; i++) total += Vector2.Distance(points[i - 1], points[i]);
+            float goal = Mathf.Clamp01(t) * total;
+            for (int i = 1; i < points.Count; i++)
+            {
+                float d = Vector2.Distance(points[i - 1], points[i]);
+                if (goal <= d || i == points.Count - 1) return Vector2.Lerp(points[i - 1], points[i], d > 0 ? Mathf.Clamp01(goal / d) : 1f);
+                goal -= d;
+            }
+            return points[points.Count - 1];
+        }
 
         public IEnumerable<FieldProblemEntry> Problems => Mission.problems;
         public Vector2 PlayerPosition => Player ? (Vector2)Player.transform.localPosition : Mission.playerStart;
@@ -1140,7 +1184,10 @@ namespace ProcurementHero.Field
                 bool visible = hazard > 0.05f;
                 v.rig.root.gameObject.SetActive(visible);
                 if (!visible) continue;
-                var pos = Vector2.Lerp(v.from, v.to, Mathf.Clamp01(hazard * 1.15f));
+                var pos = VisitorPosition(v);
+                v.moving = Vector2.Distance(pos, v.last) > 0.001f;
+                if (v.moving) FaceRig(v.rig, pos.x - v.last.x);
+                v.last = pos;
                 v.rig.root.localPosition = pos;
                 FieldArt.SetDepth(v.rig.root, pos.y - 0.45f);
             }
@@ -1190,8 +1237,9 @@ namespace ProcurementHero.Field
             foreach (var v in crowd)
             {
                 if (!v.rig.root.gameObject.activeSelf) continue;
-                bool walking = hazard < 0.85f && dt > 0;
-                FaceRig(v.rig, v.to.x - v.from.x);
+                // 실제로 자리가 바뀐 프레임에만 걷는다(대기 지점에서는 서서 기다림).
+                bool walking = v.moving && dt > 0;
+                v.moving = false;
                 if (walking) Walk(v.rig, Time.time * 9f);
                 else Stand(v.rig);
             }

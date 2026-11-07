@@ -256,6 +256,56 @@ namespace ProcurementHero.Tests
             });
         }
 
+        // ───────── 대피소 이용객: 정문 배수 결과를 따른다 ─────────
+
+        static bool InsideZone(FieldProblemEntry p, Vector2 at, float margin) =>
+            Mathf.Abs(at.x - p.zoneCenter.x) < p.zoneSize.x / 2 + margin && Mathf.Abs(at.y - p.zoneCenter.y) < p.zoneSize.y / 2 + margin;
+
+        [Test]
+        public void ShelterVisitorWaitsUnlessGateRoadIsDrained()
+        {
+            var m = M("f3");
+            var route = m.crowdRoutes.Single(r => r.visitor == 0);
+            var r = m.Problem("R");
+            Assert.AreEqual("R", route.needsProblem);
+            Assert.IsFalse(InsideZone(r, route.waitAt, 0.4f), "대기 지점은 침수 구역 밖");
+            Assert.IsFalse(m.obstacles.Any(o => Mathf.Abs(route.waitAt.x - o.center.x) < o.size.x / 2 + 0.4f && Mathf.Abs(route.waitAt.y - o.center.y) < o.size.y / 2 + 0.4f), "대기 지점은 장애물 밖");
+            var plans = new Dictionary<string, (string, string)[]>
+            {
+                ["정문 미해결(전력만)"] = new[] { ("panel", "generator") },
+                ["보조 통로만"] = new[] { ("detour", "sandbags") },
+                ["전력+보조 통로(정문 미해결)"] = new[] { ("door", "portable"), ("detour", "sandbags") },
+                ["정문 펌프"] = new[] { ("panel", "generator"), ("door", "pump") },
+                ["대형 펌프"] = new[] { ("door", "portable"), ("gate", "bigpump") }
+            };
+            foreach (var pair in plans)
+            {
+                var e = Eval(m, pair.Value);
+                bool drained = e.IsSolved("R");
+                WithWorld(m, world =>
+                {
+                    world.ApplyStage(e, 1f, 0f);
+                    Assert.AreEqual(route.waitAt, world.CrowdPosition(0), pair.Key + ": 시설 대응 전에는 모두 대기");
+                    world.ApplyStage(e, 1f, 0.5f);
+                    if (!drained) Assert.AreEqual(route.waitAt, world.CrowdPosition(0), pair.Key + ": 대응 중에도 정문 미해결이면 대기");
+                    else Assert.AreNotEqual(route.waitAt, world.CrowdPosition(0), pair.Key + ": 배수가 되면 걷기 시작");
+                    world.ApplyInstant(e);
+                    var final = world.CrowdPosition(0);
+                    Assert.Less(Vector2.Distance(drained ? m.crowd[0] : route.waitAt, final), 0.01f, pair.Key + ": 최종 자리(건너뛰기·이어하기·엔딩과 같은 ApplyInstant)");
+                    // 걷는 동안 어느 순간에도 물이 찬 구역 안에 있지 않다(배수된 경우만 진입로를 지남).
+                    for (float t = 0; t <= 1.001f; t += 0.05f)
+                    {
+                        world.ApplyStage(e, 1f, t);
+                        var at = world.CrowdPosition(0);
+                        if (!drained) Assert.IsFalse(InsideZone(r, at, 0f), pair.Key + " t=" + t);
+                    }
+                    world.ApplyInstant(null);
+                    Assert.AreEqual(0, world.VisibleCrowd, pair.Key + ": 재계획(상황 전)이면 다시 숨김");
+                    return 0;
+                });
+            }
+        }
+
         [Test]
         public void ScenarioCanBeSkippedOnceFromAnyPointAndMatchesFinalState()
         {

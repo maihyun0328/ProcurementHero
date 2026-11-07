@@ -120,6 +120,21 @@ namespace ProcurementHero.Field
         [Tooltip("옮겨 간 뒤 주민 발 아래 중심(월드 좌표)")] public Vector2 residentPosition;
     }
 
+    /// <summary>
+    /// 장식용 이용객 한 명의 조건부 길. 상황이 오면 start → waitAt까지 걸어와 기다리고,
+    /// needsProblem이 확정 계획으로 해결되고 시설이 대응한 뒤에만 via를 거쳐 목적지(crowd 위치)로 간다.
+    /// 해결되지 않으면 waitAt(물·벽 밖의 안전한 자리)에서 기다린다. 길찾기 없이 이 점들만 잇는다.
+    /// </summary>
+    [Serializable]
+    public class FieldCrowdRoute
+    {
+        [Tooltip("crowd 목록의 번호")] public int visitor;
+        [Tooltip("이 문제가 해결돼야 지나간다(예: 정문 진입로 R)")] public string needsProblem;
+        public Vector2 start;
+        public Vector2 waitAt;
+        [Tooltip("waitAt에서 목적지까지 거치는 점(벽·물·설치물을 피하도록)")] public List<Vector2> via = new List<Vector2>();
+    }
+
     [Serializable]
     public class FieldPath
     {
@@ -154,6 +169,8 @@ namespace ProcurementHero.Field
         public List<FieldReaction> reactions = new List<FieldReaction>();
         [Tooltip("상황이 일어날 때 늘어나는 이용객(장식용, 판정과 무관)의 머무는 자리")]
         public List<Vector2> crowd = new List<Vector2>();
+        [Tooltip("조건부로 움직이는 이용객의 길(없는 이용객은 아래쪽에서 곧장 걸어온다)")]
+        public List<FieldCrowdRoute> crowdRoutes = new List<FieldCrowdRoute>();
 
         public FieldProblemEntry Problem(string problemId) => problems.FirstOrDefault(p => p.id == problemId);
         public FieldItemEntry Item(string itemId) => items.FirstOrDefault(i => i.id == itemId);
