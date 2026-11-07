@@ -74,9 +74,10 @@
 | 2026-11-06 | 2차 수정: 그늘막·주민 위치 불일치, 상황에 맞는 대사, 결과 반영 엔딩, 설치 건너뛰기 임시 오브젝트 정리, 미션 2·3 배치 균형 | `FieldMissionData.cs`(주민 반응·새 물품 그림), `FieldWorld.cs`, `FieldArt.cs`, `FieldGame.cs`, `FieldGame.Screens.cs`, `DefaultFieldData.cs`, `FieldValidator.cs`, `Data/Field/*.asset`, `FieldDataTests.cs`, `Docs/**` | (기록해 주세요) |
 | 2026-11-06 | 3차: 실제 입력 검증(원인은 자동 조작 환경), 보건소 냉방 단서, 엔딩 글 줄이기·주민 중심 연출, 진행 자동 저장·이어하기 | `FieldSave.cs`(새 파일), `FieldGame.cs`, `FieldGame.Notebook.cs`, `FieldGame.Screens.cs`, `FieldWorld.cs`, `DefaultFieldData.cs`, `Data/Field/FieldMission2_Clinic.asset`, `FieldDataTests.cs`, `FieldSaveTests.cs`(새 파일), `Docs/**` | (기록해 주세요) |
 | 2026-11-06~07 | 4차: '조달 히어로: 내일을 준비하는 수첩' — AI 예측 확인, 상황 전 현장, 승인 뒤 시간 경과·상황 발생·시설 자동 대응, 디지털 트윈 지도, 추천안 비교, 엔딩 문구, 저장 유지 | `FieldRules.cs`(Recommend), `FieldMissionData.cs`(예측·시각·상황 문구·초기 징후·대응 문구·이용객), `FieldWorld.cs`(hazard·respond, 시나리오), `FieldGame*.cs`(Scenario 상태·HUD·추천·선택 보호), `FieldArt.cs`(예측 아이콘), `DefaultFieldData.cs`, `Data/Field/*.asset`, `FieldDataTests.cs`, `FieldFutureFlowTests.cs`(새 파일), `Docs/**` | (기록해 주세요) |
+| 2026-11-07 | 5차: 빈 재계획 저장·복원 오류, 대피소 주민 이동과 배수 결과 일치, AI 도움 단계화(AI 단서 → 배치안), 앱 시작 연출 | `FieldSave.cs`, `FieldWorld.cs`, `FieldMissionData.cs`, `DefaultFieldData.cs`, `Data/Field/*.asset`, `FieldRules.cs`, `FieldGame.Notebook.cs`, `FieldGame.cs`, `FieldGame.Screens.cs`, `FieldGame.Intro.cs`(새 파일), 테스트 3개 파일, `Docs/**` | (기록해 주세요) |
 
 ### 게임 속 가상 AI와 제작용 AI의 구분 (4차)
 
-- **게임 속 AI 수첩 '내일'**: 창작 설정입니다. 예측 문장·시각·상황은 `DefaultFieldData.cs`에 사람이 읽을 수 있게 적힌 고정 데이터이고, '추천안'은 `FieldRules.Recommend`의 정해진 비교 규칙입니다. 게임 실행 중 외부 LLM·날씨 API·학습은 없습니다.
+- **게임 속 AI 수첩 '내일'**: 창작 설정입니다. 예측 문장·시각·상황은 `DefaultFieldData.cs`에 사람이 읽을 수 있게 적힌 고정 데이터이고, 'AI 단서'는 `FieldRules.Hint`, '배치안'은 `FieldRules.Recommend`의 정해진 비교 규칙입니다. 게임 실행 중 외부 LLM·날씨 API·학습은 없습니다.
 - **제작에 쓴 생성형 AI**: Claude Code가 코드·데이터 문구·테스트·문서를 작성하고 Unity 에디터에서 테스트·화면 확인을 했습니다(위 표).
 
