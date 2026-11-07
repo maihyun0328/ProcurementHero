@@ -180,11 +180,11 @@ namespace ProcurementHero.Field
 
             closeButton = UIKit.Button(right, "Close", "닫기 (Tab)", CloseNotebook, ButtonStyle.Secondary, 22);
             ((RectTransform)closeButton.transform).Region(0.79f, 0.895f, 0.97f, 0.97f);
-            // 보조 기능: 2·3 현장에서 필수 관찰을 마치면 관찰한 곳 기준 추천안을 반투명하게 비교해 볼 수 있다.
+            // 보조 기능: 2·3 현장에서 필수 관찰을 마치면 'AI 단서'(한 가지 단서) → 원하면 '배치안까지 보기'(전체 추천안).
             recommendButton = null;
             if (MissionIndex > 0)
             {
-                recommendButton = UIKit.Button(right, "Recommend", "추천안 비교", OpenRecommend, ButtonStyle.Secondary, 20);
+                recommendButton = UIKit.Button(right, "AiHint", "AI 단서", OpenHint, ButtonStyle.Secondary, 20);
                 ((RectTransform)recommendButton.transform).Region(0.79f, 0.84f, 0.97f, 0.89f);
             }
 
@@ -612,38 +612,105 @@ namespace ProcurementHero.Field
         RectTransform recommendPanel;
         FieldPlan recommended;
 
-        /// <summary>추천안 비교 창이 열려 있는지(검증용).</summary>
+        /// <summary>AI 단서 또는 추천안 창이 열려 있는지(검증용).</summary>
         public bool RecommendOpen => recommendPanel;
-        /// <summary>지금 보여 주는 추천안(검증용, 닫혀 있으면 null).</summary>
-        public FieldPlan RecommendedPlan => recommendPanel ? recommended : null;
+        /// <summary>지금 보여 주는 추천안(검증용, 단서 단계거나 닫혀 있으면 null).</summary>
+        public FieldPlan RecommendedPlan => recommendPanel && recommendShown ? recommended : null;
+        /// <summary>마지막으로 보여 준 AI 단서 문장(검증용).</summary>
+        public string HintText { get; private set; }
+        bool recommendShown;
+
+        static string Need(FieldProblemKind k) => k switch
+        {
+            FieldProblemKind.Dark => "조명",
+            FieldProblemKind.Heat => "더위",
+            FieldProblemKind.Thirst => "마실 물",
+            FieldProblemKind.Power => "전력",
+            _ => "침수"
+        };
+
+        /// <summary>단서 문장. 관찰한 문제·지금 계획에 놓은 자리만 이름으로 말한다.</summary>
+        string HintSentence(FieldHint h)
+        {
+            var p = h.ProblemId != null ? Mission.Problem(h.ProblemId) : null;
+            var spot = h.SpotId != null ? Mission.Spot(h.SpotId) : null;
+            switch (h.Kind)
+            {
+                case FieldHintKind.NeedObservation: return $"아직 살펴볼 곳이 {h.Amount}곳 남았어요. 현장을 먼저 확인해요.";
+                case FieldHintKind.MissingRequired: return $"관찰한 곳 중 '{p.displayName}'에 {Need(p.kind)} 대비가 빠져 있어요.";
+                case FieldHintKind.Overlap: return $"'{p.displayName}'에 {Need(p.kind)} 대비 효과가 겹치고 있어요. 한쪽 예산을 다른 곳에 쓸 수 있어요.";
+                case FieldHintKind.NoEffect: return $"'{spot.displayName}'에 고른 물품은 관찰한 곳 중 닿는 곳이 없어요.";
+                case FieldHintKind.OverBudget: return $"예산을 {h.Amount} 넘었어요. 꼭 필요한 대비부터 남겨 봐요.";
+                case FieldHintKind.MissingBonus: return $"관찰한 곳의 필수 대비가 갖춰졌어요. 추가 목표 '{p.displayName}'의 {Need(p.kind)} 대비도 예산 안에서 가능한지 살펴봐요.";
+                default: return "관찰한 곳의 필수 대비가 갖춰졌어요.";
+            }
+        }
+
+        RectTransform NewHelpPanel()
+        {
+            if (recommendPanel) Destroy(recommendPanel.gameObject);
+            var panel = UIKit.Panel(bookParts.right, "RecommendPanel", Theme.WithAlpha(Theme.Paper, 0.97f), null, true).rectTransform;
+            panel.Region(0.03f, 0.2f, 0.97f, 0.83f);
+            panel.gameObject.AddComponent<Outline>().effectColor = Theme.WithAlpha(Theme.Teal, 0.9f);
+            FieldArt.ForecastIcon(panel, 54).Place(new Vector2(0, 1), new Vector2(46, -42), new Vector2(54, 54));
+            return panel;
+        }
 
         /// <summary>
-        /// 추천안 비교(보조): 관찰한 곳만 기준으로 예산 안의 계획을 비교해 반투명하게 보여 준다.
-        /// 적용·취소는 사용자가 정하며, 추천을 열어도 계획 확정·공급은 일어나지 않는다.
+        /// 첫 번째 도움 'AI 단서': 지금 계획과 관찰한 문제를 비교한 한 가지(FieldRules.Hint). 계획은 바꾸지 않는다.
+        /// 더 원하면 '배치안까지 보기'를 눌러야 전체 추천안이 나온다.
         /// </summary>
-        public void OpenRecommend()
+        public void OpenHint()
         {
             if (State != FieldState.Notebook || notebookBusy || confirmLocked || recommendPanel || MissionIndex == 0) return;
+            if (FieldRules.MissingObservations(Spec, observed) > 0) return;
+            sound.Play(Sfx.Select);
+            recommendShown = false;
+            recommendPanel = NewHelpPanel();
+            HintText = HintSentence(FieldRules.Hint(Spec, Plan, observed));
+            UIKit.Text(recommendPanel, "Title", "AI 단서 <size=20>(관찰한 곳 · 지금 계획 기준)</size>", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true)
+                .rectTransform.Region(0.14f, 0.86f, 0.98f, 0.98f);
+            var body = UIKit.Text(recommendPanel, "Body", HintText, 30, Theme.Navy, TextAlignmentOptions.MidlineLeft);
+            body.rectTransform.Region(0.07f, 0.3f, 0.95f, 0.8f);
+            body.enableAutoSizing = true;
+            body.fontSizeMin = 18;
+            body.fontSizeMax = 30;
+            var bar = UIKit.Rect(recommendPanel, "Buttons").Region(0.05f, 0.03f, 0.95f, 0.17f);
+            UIKit.HorizontalList(bar, 16);
+            var close = UIKit.Button(bar, "Cancel", "닫기", CloseRecommend, ButtonStyle.Primary, 24);
+            var more = UIKit.Button(bar, "ShowPlan", "배치안까지 보기", ShowRecommendation, ButtonStyle.Secondary, 22);
+            UIKit.ChainNavigation(new Selectable[] { close, more }, false);
+            Select(close);
+        }
+
+        /// <summary>단서 창에서 명시적으로 고른 경우에만: 관찰한 곳 기준 전체 추천안과 지금 계획의 비교. 적용은 따로 눌러야 한다.</summary>
+        public void ShowRecommendation()
+        {
+            if (!recommendPanel || recommendShown || State != FieldState.Notebook || confirmLocked) return;
             recommended = FieldRules.Recommend(Spec, observed);
             if (recommended == null) return;
             sound.Play(Sfx.Select);
+            recommendShown = true;
+            recommendPanel = NewHelpPanel();
             var eval = FieldRules.Evaluate(Spec, recommended);
-            var right = bookParts.right;
-            recommendPanel = UIKit.Panel(right, "RecommendPanel", Theme.WithAlpha(Theme.Paper, 0.97f), null, true).rectTransform;
-            recommendPanel.Region(0.03f, 0.2f, 0.97f, 0.83f);
-            recommendPanel.gameObject.AddComponent<Outline>().effectColor = Theme.WithAlpha(Theme.Teal, 0.9f);
-            FieldArt.ForecastIcon(recommendPanel, 54).Place(new Vector2(0, 1), new Vector2(46, -42), new Vector2(54, 54));
-            UIKit.Text(recommendPanel, "Title", "가상 실증 추천안 <size=20>(관찰한 곳 기준)</size>", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true)
+            var now = FieldRules.Evaluate(Spec, Plan);
+            string Seen(FieldEvaluation e)
+            {
+                var names = Mission.problems.Where(p => observed.Contains(p.id) && e.IsSolved(p.id)).Select(p => p.displayName).ToList();
+                return names.Count > 0 ? string.Join(" · ", names) : "없음";
+            }
+            UIKit.Text(recommendPanel, "Title", "가상 실증 배치안 <size=20>(관찰한 곳 기준)</size>", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true)
                 .rectTransform.Region(0.14f, 0.86f, 0.98f, 0.98f);
             var lines = Mission.spots.Select(sp =>
             {
                 var item = recommended.ItemAt(sp.id);
                 return $"<b>{sp.displayName}</b>  {(item != null ? Mission.Item(item).displayName : "<color=#8A90A6>비워 둠</color>")}";
             });
-            var solvedSeen = Mission.problems.Where(p => observed.Contains(p.id) && eval.IsSolved(p.id)).Select(p => p.displayName);
             var body = UIKit.Text(recommendPanel, "Body",
-                string.Join("\n", lines) + $"\n\n<b>예산</b> {eval.Cost} / {Mission.budget}\n<b>대비 예상</b> {string.Join(" · ", solvedSeen)}\n" +
-                "<size=19><color=#55607E>관찰한 필수 문제 → 관찰한 추가 목표 → 낮은 비용 순으로 고른 비교안이에요. 관찰하지 않은 곳은 따지지 않아요.</color></size>",
+                string.Join("\n", lines) +
+                $"\n\n<b>배치안</b> 예산 {eval.Cost} / {Mission.budget} · 대비 {Seen(eval)}" +
+                $"\n<b>지금 계획</b> 예산 {now.Cost} / {Mission.budget} · 대비 {Seen(now)}\n" +
+                "<size=19><color=#55607E>관찰한 필수 문제 → 관찰한 추가 목표 → 낮은 비용 순으로 고른 비교안이에요. 적용해도 직접 고칠 수 있고, 승인은 따로 해요.</color></size>",
                 24, Theme.Navy, TextAlignmentOptions.TopLeft);
             body.rectTransform.Region(0.05f, 0.2f, 0.97f, 0.84f);
             body.enableAutoSizing = true;
@@ -668,7 +735,7 @@ namespace ProcurementHero.Field
                 UIKit.Shape(ghost, "Ring", ShapeSprites.Circle, Theme.WithAlpha(Theme.Teal, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(60, 60)).raycastTarget = false;
                 FieldArt.ItemIcon(ghost, Mission.Item(item).visual, 46).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(46, 46));
             }
-            Select(cancel);
+            SelectNextFrame(() => cancel);
         }
 
         public void CloseRecommend()
@@ -676,6 +743,7 @@ namespace ProcurementHero.Field
             if (!recommendPanel) return;
             Destroy(recommendPanel.gameObject);
             recommendPanel = null;
+            recommendShown = false;
             if (mapArea)
                 for (int i = mapArea.childCount - 1; i >= 0; i--)
                     if (mapArea.GetChild(i).name.StartsWith("Ghost_")) Destroy(mapArea.GetChild(i).gameObject);
@@ -686,7 +754,7 @@ namespace ProcurementHero.Field
         /// <summary>추천안을 편집 중 계획으로 옮긴다(확정은 하지 않는다).</summary>
         public void ApplyRecommend()
         {
-            if (!recommendPanel || recommended == null || State != FieldState.Notebook || confirmLocked) return;
+            if (!recommendPanel || !recommendShown || recommended == null || State != FieldState.Notebook || confirmLocked) return;
             var chosen = recommended;
             Plan = new FieldPlan();
             foreach (var pair in chosen.Assignments) Plan.Toggle(Spec, pair.Key, pair.Value);

@@ -151,6 +151,28 @@ namespace ProcurementHero.Core.Field
         public bool IsSolved(string problemId) => Solved.Contains(problemId);
     }
 
+    /// <summary>AI 단서의 종류. 하나만 골라 짧게 알려 준다(지점·물품 정답을 한꺼번에 알려 주지 않음).</summary>
+    public enum FieldHintKind
+    {
+        NeedObservation,
+        MissingRequired,
+        Overlap,
+        NoEffect,
+        OverBudget,
+        MissingBonus,
+        AllCovered
+    }
+
+    public sealed class FieldHint
+    {
+        public FieldHintKind Kind;
+        /// <summary>관련 문제(관찰한 문제만). 없으면 null.</summary>
+        public string ProblemId;
+        /// <summary>관련 설치 지점(지금 계획에 이미 놓은 자리만). 없으면 null.</summary>
+        public string SpotId;
+        public int Amount;
+    }
+
     public static class FieldRules
     {
         public static int Cost(FieldMissionSpec mission, FieldPlan plan)
@@ -259,6 +281,41 @@ namespace ProcurementHero.Core.Field
                 bestCount = plan.Count;
             }
             return best;
+        }
+
+        /// <summary>
+        /// AI 단서: 관찰한 문제와 지금 계획을 비교해 한 가지만 알려 준다. 계획은 바꾸지 않는다.
+        /// 순서: 관찰한 필수 문제 중 빠진 대비 → 같은 문제에 겹친 효과 → 관찰한 곳에 닿지 않는 물품 → 예산 초과 → 관찰한 추가 목표 → 모두 갖춤.
+        /// 관찰하지 않은 문제는 어떤 단서에도 쓰지 않는다. 판정은 Evaluate와 같은 지점·물품 효과만 쓴다.
+        /// </summary>
+        public static FieldHint Hint(FieldMissionSpec mission, FieldPlan plan, ICollection<string> observed)
+        {
+            if (MissingObservations(mission, observed) > 0)
+                return new FieldHint { Kind = FieldHintKind.NeedObservation, Amount = MissingObservations(mission, observed) };
+            var solved = Solved(mission, plan);
+            var seen = mission.Problems.Where(p => observed.Contains(p.Id)).ToList();
+
+            var missing = seen.FirstOrDefault(p => p.Required && !solved.Contains(p.Id));
+            if (missing != null) return new FieldHint { Kind = FieldHintKind.MissingRequired, ProblemId = missing.Id };
+
+            var valid = plan.Assignments.Where(a => mission.Spot(a.Key)?.Allows(a.Value) == true)
+                .Select(a => (spot: a.Key, solves: mission.Spot(a.Key).Solves(a.Value))).ToList();
+            foreach (var p in seen)
+            {
+                var covering = valid.Where(v => v.solves.Contains(p.Id)).ToList();
+                if (covering.Count >= 2) return new FieldHint { Kind = FieldHintKind.Overlap, ProblemId = p.Id };
+            }
+
+            var idle = valid.FirstOrDefault(v => !v.solves.Any(observed.Contains));
+            if (idle.spot != null) return new FieldHint { Kind = FieldHintKind.NoEffect, SpotId = idle.spot };
+
+            int cost = Cost(mission, plan);
+            if (cost > mission.Budget) return new FieldHint { Kind = FieldHintKind.OverBudget, Amount = cost - mission.Budget };
+
+            var bonus = seen.FirstOrDefault(p => !p.Required && !solved.Contains(p.Id));
+            if (bonus != null) return new FieldHint { Kind = FieldHintKind.MissingBonus, ProblemId = bonus.Id };
+
+            return new FieldHint { Kind = FieldHintKind.AllCovered };
         }
 
         /// <summary>모든 지점에 (미배정 + 설치 가능한 물품) 중 하나를 고르는 모든 조합을 만든다.</summary>

@@ -144,6 +144,72 @@ namespace ProcurementHero.Tests
             Assert.IsFalse(r3.IsSolved("B"));
         }
 
+        // ───────── AI 단서 ─────────
+
+        static FieldHint Hint(FieldMissionData m, string[] seen, params (string, string)[] picks) =>
+            FieldRules.Hint(m.ToSpec(), Plan(m, picks), new HashSet<string>(seen));
+
+        [Test]
+        public void HintPointsAtOneMissingObservedNeed()
+        {
+            var m2 = M("f2");
+            var h = Hint(m2, new[] { "H", "W" }, ("waiting", "aircon"));
+            Assert.AreEqual(FieldHintKind.MissingRequired, h.Kind);
+            Assert.AreEqual("W", h.ProblemId, "빠진 것은 마실 물(복도 쉼터)");
+            Assert.IsNull(h.SpotId, "놓을 자리를 알려 주지 않는다");
+            Assert.AreEqual(FieldHintKind.NeedObservation, Hint(m2, new[] { "H" }).Kind);
+        }
+
+        [Test]
+        public void HintReportsOverlapOnlyWhenEffectsReallyOverlap()
+        {
+            var m2 = M("f2");
+            var over = Hint(m2, new[] { "H", "W" }, ("waiting", "aircon"), ("hall", "aircon"), ("corridor", "water"));
+            Assert.AreEqual(FieldHintKind.Overlap, over.Kind);
+            Assert.AreEqual("H", over.ProblemId);
+            var clean = Hint(m2, new[] { "H", "W" }, ("waiting", "aircon"), ("corridor", "water"));
+            Assert.AreEqual(FieldHintKind.AllCovered, clean.Kind, "중복 없는 계획에 중복이라고 하지 않는다");
+            // 현관 대형 냉방기 하나는 H·O를 함께 해결할 뿐 겹침이 아니다.
+            Assert.AreEqual(FieldHintKind.AllCovered, Hint(m2, new[] { "H", "W", "O" }, ("hall", "bigcool"), ("corridor", "water")).Kind);
+        }
+
+        [Test]
+        public void HintNeverMentionsUnobservedProblems()
+        {
+            var m2 = M("f2");
+            // O를 보지 않았으면 O를 빠졌다고 말하지 않고, O만 해결하는 그늘막은 '관찰한 곳에 닿지 않음'으로만 말한다.
+            var h = Hint(m2, new[] { "H", "W" }, ("waiting", "aircon"), ("corridor", "water"));
+            Assert.AreEqual(FieldHintKind.AllCovered, h.Kind);
+            var idle = Hint(m2, new[] { "H", "W" }, ("waiting", "aircon"), ("corridor", "water"), ("yard", "shade"));
+            Assert.AreEqual(FieldHintKind.NoEffect, idle.Kind);
+            Assert.AreEqual("yard", idle.SpotId);
+            Assert.IsNull(idle.ProblemId);
+            var bonus = Hint(m2, new[] { "H", "W", "O" }, ("waiting", "aircon"), ("corridor", "water"));
+            Assert.AreEqual(FieldHintKind.MissingBonus, bonus.Kind, "본 추가 목표는 말할 수 있다");
+            Assert.AreEqual("O", bonus.ProblemId);
+            foreach (var m in database.missions)
+                foreach (var plan in FieldRules.AllPlans(m.ToSpec()))
+                {
+                    var seen = new HashSet<string>(m.problems.Where(p => p.mustObserve).Select(p => p.id));
+                    var hint = FieldRules.Hint(m.ToSpec(), plan, seen);
+                    if (hint.ProblemId != null) Assert.IsTrue(seen.Contains(hint.ProblemId), m.id);
+                    if (hint.SpotId != null) Assert.IsNotNull(plan.ItemAt(hint.SpotId), m.id + ": 단서의 자리는 이미 놓은 자리만");
+                    if (hint.Kind == FieldHintKind.MissingRequired) Assert.IsFalse(FieldRules.Solved(m.ToSpec(), plan).Contains(hint.ProblemId), m.id);
+                }
+        }
+
+        [Test]
+        public void HintDoesNotChangeThePlan()
+        {
+            var m3 = M("f3");
+            var plan = Plan(m3, ("panel", "generator"));
+            var before = string.Join(",", plan.Assignments.Select(a => a.Key + a.Value));
+            var h = FieldRules.Hint(m3.ToSpec(), plan, new HashSet<string> { "P", "R" });
+            Assert.AreEqual(FieldHintKind.MissingRequired, h.Kind);
+            Assert.AreEqual("R", h.ProblemId);
+            Assert.AreEqual(before, string.Join(",", plan.Assignments.Select(a => a.Key + a.Value)));
+        }
+
         [Test]
         public void RecommendationIsBestWithinBudgetByObservedPriority()
         {
