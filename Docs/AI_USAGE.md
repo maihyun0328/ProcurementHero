@@ -73,3 +73,10 @@
 | 2026-11-06 | 현장 수첩 개선(탐색 의미, 미션 2·3 퍼즐 재설계, 수첩·페이지·도착·캐릭터·주민·설치 연출, 안정성) 구현·검증·커밋·푸시 시도 | `Scripts/Runtime/Field/**`(새 파일 `FieldBook.cs`), `Scripts/Core/Field/FieldRules.cs`, `ShapeSprites.cs`, `Scripts/Editor/DefaultFieldData.cs`·`FieldSetup.cs`·`FieldValidator.cs`, `Data/Field/*.asset`, 테스트 2개, `Docs/**` | (기록해 주세요) |
 | 2026-11-06 | 2차 수정: 그늘막·주민 위치 불일치, 상황에 맞는 대사, 결과 반영 엔딩, 설치 건너뛰기 임시 오브젝트 정리, 미션 2·3 배치 균형 | `FieldMissionData.cs`(주민 반응·새 물품 그림), `FieldWorld.cs`, `FieldArt.cs`, `FieldGame.cs`, `FieldGame.Screens.cs`, `DefaultFieldData.cs`, `FieldValidator.cs`, `Data/Field/*.asset`, `FieldDataTests.cs`, `Docs/**` | (기록해 주세요) |
 | 2026-11-06 | 3차: 실제 입력 검증(원인은 자동 조작 환경), 보건소 냉방 단서, 엔딩 글 줄이기·주민 중심 연출, 진행 자동 저장·이어하기 | `FieldSave.cs`(새 파일), `FieldGame.cs`, `FieldGame.Notebook.cs`, `FieldGame.Screens.cs`, `FieldWorld.cs`, `DefaultFieldData.cs`, `Data/Field/FieldMission2_Clinic.asset`, `FieldDataTests.cs`, `FieldSaveTests.cs`(새 파일), `Docs/**` | (기록해 주세요) |
+| 2026-11-06~07 | 4차: '조달 히어로: 내일을 준비하는 수첩' — AI 예측 확인, 상황 전 현장, 승인 뒤 시간 경과·상황 발생·시설 자동 대응, 디지털 트윈 지도, 추천안 비교, 엔딩 문구, 저장 유지 | `FieldRules.cs`(Recommend), `FieldMissionData.cs`(예측·시각·상황 문구·초기 징후·대응 문구·이용객), `FieldWorld.cs`(hazard·respond, 시나리오), `FieldGame*.cs`(Scenario 상태·HUD·추천·선택 보호), `FieldArt.cs`(예측 아이콘), `DefaultFieldData.cs`, `Data/Field/*.asset`, `FieldDataTests.cs`, `FieldFutureFlowTests.cs`(새 파일), `Docs/**` | (기록해 주세요) |
+
+### 게임 속 가상 AI와 제작용 AI의 구분 (4차)
+
+- **게임 속 AI 수첩 '내일'**: 창작 설정입니다. 예측 문장·시각·상황은 `DefaultFieldData.cs`에 사람이 읽을 수 있게 적힌 고정 데이터이고, '추천안'은 `FieldRules.Recommend`의 정해진 비교 규칙입니다. 게임 실행 중 외부 LLM·날씨 API·학습은 없습니다.
+- **제작에 쓴 생성형 AI**: Claude Code가 코드·데이터 문구·테스트·문서를 작성하고 Unity 에디터에서 테스트·화면 확인을 했습니다(위 표).
+
