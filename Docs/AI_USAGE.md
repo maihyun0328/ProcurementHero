@@ -77,6 +77,7 @@
 | 2026-11-07 | 5차: 빈 재계획 저장·복원 오류, 대피소 주민 이동과 배수 결과 일치, AI 도움 단계화(AI 단서 → 배치안), 앱 시작 연출 | `FieldSave.cs`, `FieldWorld.cs`, `FieldMissionData.cs`, `DefaultFieldData.cs`, `Data/Field/*.asset`, `FieldRules.cs`, `FieldGame.Notebook.cs`, `FieldGame.cs`, `FieldGame.Screens.cs`, `FieldGame.Intro.cs`(새 파일), 테스트 3개 파일, `Docs/**` | (기록해 주세요) |
 | 2026-11-09 | 6차: 침수 그림·통행 범위 일치와 갇힘 방지, 완주 뒤 현장 선택·재도전, 수첩 가독성(관찰 카드·자세히·배치안 정리), 시작 연출 실제 속도 기록과 페이드·음량 보정 | `FieldWorld.cs`, `FieldValidator.cs`, `DefaultFieldData.cs`, `Data/Field/*.asset`, `FieldMissionData.cs`, `FieldRules.cs`(SubmitRetry), `FieldSave.cs`, `FieldGame*.cs`, `AudioService.cs`, 테스트 3개 파일, `Docs/**` | (기록해 주세요) |
 | 2026-11-09 | 7차: 수첩 펼치기·닫기·페이지 넘김을 책등 축 한 장 방식으로 다시 구현(실제 속도 기록으로 원인 확인·곡선 조정), 중단 정리·테스트, 타이틀·HUD 작은 글씨, AI 단서 안내 한 줄 | `FieldBook.cs`, `FieldGame.Intro.cs`, `FieldGame.Screens.cs`, `FieldGame.Notebook.cs`, `FieldGame.cs`, `FieldBookTests.cs`(새 파일), `Docs/**` | (기록해 주세요) |
+| 2026-11-09 | 8차: 관찰 진행도(전체)와 필수 관찰 표시 분리, 모래주머니로 지킨 보조 통로가 대응 뒤 마른 통로로 보이게 수정 | `FieldRules.cs`, `FieldGame.cs`, `FieldGame.Notebook.cs`, `FieldGame.Screens.cs`, `FieldWorld.cs`, `FieldFutureFlowTests.cs`, `Docs/**` | (기록해 주세요) |
 
 ### 게임 속 가상 AI와 제작용 AI의 구분 (4차)
 
