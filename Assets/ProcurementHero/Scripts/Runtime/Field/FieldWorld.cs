@@ -57,12 +57,25 @@ namespace ProcurementHero.Field
             public bool Moving => moveT < 1f;
         }
 
+        /// <summary>
+        /// 깊은 물. 그림(진한 물·테두리·주의 표지)과 충돌 사각형이 같은 범위다. 물높이가 절반을 넘으면 그림이 나타나며 통행을 막고,
+        /// 넘지 않으면(상황 전 얕은 물·배수 뒤·물막이) 그림도 충돌도 없다. 둘레의 넓은 얕은 물(문제 구역)은 늘 지나갈 수 있다.
+        /// </summary>
         class Puddle
         {
             public string clearedBy;
-            public SpriteRenderer sprite, shine;
-            public Collider2D collider;
+            public Vector2 center, size;
+            public SpriteRenderer sprite, rim, shine;
+            public Transform sign;
+            public BoxCollider2D collider;
         }
+
+        /// <summary>깊은 물로 보고 통행을 막는 물높이(0~1). 그림과 충돌이 같은 기준을 쓴다.</summary>
+        public const float DeepWater = 0.5f;
+        static readonly Color ShallowColor = Theme.Hex(0x8CC4EC);
+        static readonly Color WetColor = Theme.Hex(0x5E6B78);
+        static readonly Color DeepWaterColor = Theme.WithAlpha(Theme.Hex(0x2C64A8), 0.9f);
+        static readonly Color DeepRimColor = Theme.WithAlpha(Theme.Hex(0x16365E), 0.95f);
 
         readonly Dictionary<string, Site> sites = new Dictionary<string, Site>();
         readonly Dictionary<string, Transform> spotMarkers = new Dictionary<string, Transform>();
@@ -77,7 +90,9 @@ namespace ProcurementHero.Field
         float hazard, respond;
         SpriteRenderer sky, sun, cloud, playerHalo;
         readonly List<SpriteRenderer> litWindows = new List<SpriteRenderer>();
-        class Visitor { public Rig rig; public Vector2 from, to; public FieldCrowdRoute route; public Vector2 last; public bool moving; }
+        class Visitor { public Rig rig; public Vector2 from, to; public FieldCrowdRoute route; public Vector2 last; public bool moving; public float walked; }
+        /// <summary>조건부 길의 이용객이 길이 열린 뒤 걷는 속도(월드 단위/초).</summary>
+        public const float VisitorSpeed = 4.6f;
         readonly List<Visitor> crowd = new List<Visitor>();
         float observePose, observeTimer, notebookPose;
 
@@ -229,10 +244,22 @@ namespace ProcurementHero.Field
                     }
                     case FieldObstacleKind.Puddle:
                     {
-                        var sprite = FieldArt.Round(transform, "Puddle", Theme.Water, o.center, o.size, FieldArt.OrderFlat);
-                        var shine = FieldArt.Round(transform, "PuddleShine", Theme.WithAlpha(Color.white, 0.5f), o.center + new Vector2(-o.size.x * 0.15f, o.size.y * 0.15f),
-                            new Vector2(o.size.x * 0.4f, 0.1f), FieldArt.OrderFlat + 1);
-                        puddles.Add(new Puddle { clearedBy = o.clearedBy, sprite = sprite, shine = shine, collider = collider });
+                        // 깊은 물: 진한 물 + 뚜렷한 테두리 + 주의 표지. 충돌 사각형과 같은 크기로 그린다(모서리만 살짝 둥글다).
+                        var rim = FieldArt.Box(transform, "DeepRim", DeepRimColor, o.center, o.size + new Vector2(0.16f, 0.16f), FieldArt.OrderFlat);
+                        var sprite = FieldArt.Box(transform, "DeepWater", DeepWaterColor, o.center, o.size, FieldArt.OrderFlat + 1);
+                        var shine = FieldArt.Round(transform, "DeepShine", Theme.WithAlpha(Color.white, 0.5f), o.center + new Vector2(-o.size.x * 0.15f, o.size.y * 0.18f),
+                            new Vector2(o.size.x * 0.4f, 0.1f), FieldArt.OrderFlat + 2);
+                        var signAt = o.center + new Vector2(-o.size.x / 2 + 0.35f, -o.size.y / 2 + 0.25f);
+                        var sign = FieldArt.DepthRoot(transform, "DeepSign", signAt, signAt.y - 0.2f);
+                        FieldArt.Box(sign, "Post", Theme.Hex(0x5B5F6E), new Vector2(0, 0.1f), new Vector2(0.08f, 0.6f), 0);
+                        FieldArt.Sprite(sign, "Warn", ShapeSprites.Triangle, Theme.Warning, new Vector2(0, 0.55f), new Vector2(0.62f, 0.54f), 1);
+                        FieldArt.Box(sign, "Bang", FieldArt.Ink, new Vector2(0, 0.58f), new Vector2(0.07f, 0.22f), 2);
+                        FieldArt.Box(sign, "Dot", FieldArt.Ink, new Vector2(0, 0.41f), new Vector2(0.07f, 0.06f), 2);
+                        puddles.Add(new Puddle
+                        {
+                            clearedBy = o.clearedBy, center = o.center, size = o.size, sprite = sprite, rim = rim, shine = shine,
+                            sign = sign, collider = (BoxCollider2D)collider
+                        });
                         break;
                     }
                     default:
@@ -290,7 +317,8 @@ namespace ProcurementHero.Field
                         site.beacon = FieldArt.Dot(transform, "Beacon", Theme.Warning, p.zoneCenter + new Vector2(0, 1.9f), 0.5f, FieldArt.OrderGlow - 1);
                         break;
                     default:
-                        site.overlay = FieldArt.Round(transform, "Flood_" + p.id, Theme.WithAlpha(Theme.Hex(0x4F99DB), 0.62f), p.zoneCenter, p.zoneSize, FieldArt.OrderZone);
+                        // 넓은 얕은 물(통행 가능). 깊은 물은 장애물(Puddle)로 따로 그린다.
+                        site.overlay = FieldArt.Round(transform, "Flood_" + p.id, Theme.WithAlpha(ShallowColor, 0.4f), p.zoneCenter, p.zoneSize, FieldArt.OrderZone);
                         for (int i = 0; i < 3; i++)
                             site.waves.Add(FieldArt.Round(transform, "Ripple", Theme.WithAlpha(Color.white, 0.6f),
                                 p.zoneCenter + new Vector2(-p.zoneSize.x * 0.25f + i * p.zoneSize.x * 0.25f, -p.zoneSize.y * 0.2f + i * 0.6f), new Vector2(0.8f, 0.12f), FieldArt.OrderZone + 1));
@@ -494,19 +522,66 @@ namespace ProcurementHero.Field
         {
             if (v.route == null) return Vector2.Lerp(v.from, v.to, Mathf.Clamp01(hazard * 1.15f));
             var approach = Mathf.Clamp01(hazard * 1.15f);
-            if (approach < 1f || !sites.TryGetValue(v.route.needsProblem ?? "", out var need) || need.level < 1f)
-                return Vector2.Lerp(v.route.start, v.route.waitAt, approach);
+            if (approach < 1f || v.walked <= 0f) return Vector2.Lerp(v.route.start, v.route.waitAt, approach);
+            return AlongPath(RoutePoints(v), v.walked);
+        }
+
+        static List<Vector2> RoutePoints(Visitor v)
+        {
             var points = new List<Vector2> { v.route.waitAt };
             points.AddRange(v.route.via);
             points.Add(v.to);
-            return AlongPath(points, respond);
+            return points;
         }
 
-        static Vector2 AlongPath(List<Vector2> points, float t)
+        static float PathLength(List<Vector2> points)
         {
             float total = 0;
             for (int i = 1; i < points.Count; i++) total += Vector2.Distance(points[i - 1], points[i]);
-            float goal = Mathf.Clamp01(t) * total;
+            return total;
+        }
+
+        /// <summary>
+        /// 이용객의 길이 지금 열려 있는지: 필요한 문제가 확정 계획으로 해결되어 있고, 지금 화면에서도 지나갈 수 있는 상태
+        /// (침수는 깊은 물이 빠진 뒤, 그 밖의 문제는 시설이 반 이상 대응한 뒤)여야 한다.
+        /// </summary>
+        bool RouteOpen(Visitor v)
+        {
+            if (v.route == null || !sites.TryGetValue(v.route.needsProblem ?? "", out var need) || need.level < 1f) return false;
+            if (Mathf.Clamp01(hazard * 1.15f) < 1f) return false;
+            return need.data.kind == FieldProblemKind.Flood ? Water(need) < DeepWater : Response(need) >= 0.5f;
+        }
+
+        /// <summary>
+        /// 길이 열린 이용객을 일정한 걸음으로 dt만큼 걷게 한다(현장 시간을 따른다). 길이 닫혀 있으면 대기 지점에 머문다.
+        /// 최종 상태(ApplyInstant)는 걸음이 끝난 자리와 같다.
+        /// </summary>
+        public void StepCrowd(float dt)
+        {
+            if (dt <= 0f) return;
+            foreach (var v in crowd)
+            {
+                if (v.route == null || !v.rig.root.gameObject.activeSelf || !RouteOpen(v)) continue;
+                float total = PathLength(RoutePoints(v));
+                if (v.walked >= total) continue;
+                v.walked = Mathf.Min(total, v.walked + dt * VisitorSpeed);
+                PlaceVisitor(v);
+            }
+        }
+
+        void PlaceVisitor(Visitor v)
+        {
+            var pos = VisitorPosition(v);
+            v.moving = Vector2.Distance(pos, v.last) > 0.001f;
+            if (v.moving) FaceRig(v.rig, pos.x - v.last.x);
+            v.last = pos;
+            v.rig.root.localPosition = pos;
+            FieldArt.SetDepth(v.rig.root, pos.y - 0.45f);
+        }
+
+        static Vector2 AlongPath(List<Vector2> points, float distance)
+        {
+            float goal = Mathf.Max(0f, distance);
             for (int i = 1; i < points.Count; i++)
             {
                 float d = Vector2.Distance(points[i - 1], points[i]);
@@ -520,8 +595,14 @@ namespace ProcurementHero.Field
         public Vector2 PlayerPosition => Player ? (Vector2)Player.transform.localPosition : Mission.playerStart;
         public int InstalledCount => installed.Count;
 
-        /// <summary>해당 문제로 사라지는 물웅덩이가 아직 길을 막고 있는지(검증용).</summary>
+        /// <summary>해당 문제의 깊은 물이 지금 길을 막고 있는지(검증용).</summary>
         public bool PuddleBlocking(string problemId) => puddles.Any(p => p.clearedBy == problemId && p.collider.enabled);
+
+        /// <summary>해당 문제의 깊은 물 그림이 지금 보이는 정도(0~1, 검증용). 막힘과 같은 기준으로 나타난다.</summary>
+        public float DeepShown(string problemId) => puddles.Where(p => p.clearedBy == problemId).Select(p => p.sprite.color.a / DeepWaterColor.a).DefaultIfEmpty(0f).Max();
+
+        /// <summary>플레이어 몸(원)이 지금 막혀 있는 깊은 물과 겹치는지(검증용).</summary>
+        public bool PlayerInDeepWater => Player && puddles.Any(p => p.collider.enabled && Overlaps(p.center, p.size, PlayerFoot, PlayerRadius));
         public float SiteLevel(string problemId) => sites.TryGetValue(problemId, out var s) ? s.level : -1f;
 
         /// <summary>주민의 지금 위치(이동 중이면 이동 중인 위치).</summary>
@@ -699,7 +780,17 @@ namespace ProcurementHero.Field
                 site.resident.root.localPosition = site.anchor;
                 FieldArt.SetDepth(site.resident.root, site.anchor.y - 0.45f);
             }
+            // 조건부 길의 이용객: 최종 상태(시설 대응 끝)에서 길이 열려 있으면 목적지, 아니면 대기 지점(연출 중에는 StepCrowd가 걷게 한다).
+            foreach (var v in crowd) v.walked = 0f;
             RenderAll();
+            foreach (var v in crowd)
+                if (v.route != null && respond >= 0.99f && RouteOpen(v))
+                {
+                    v.walked = PathLength(RoutePoints(v));
+                    if (v.rig.root.gameObject.activeSelf) PlaceVisitor(v);
+                }
+            // 바로 적용한 상태에서 깊은 물이 막혔는데 그 안에 서 있었다면 가장 가까운 물 밖으로 옮긴다(이미 밖이면 그대로).
+            KeepPlayerOutOfDeepWater();
         }
 
         void ClearInstalled()
@@ -806,13 +897,18 @@ namespace ProcurementHero.Field
         {
             StopRoutines();
             ApplyState(result, 0f, 0f);
-            // 물이 찰 수 있는 웅덩이 위에 서 있었다면 충돌이 켜지기 전에 출발 지점으로 옮긴다(벽 안에 끼지 않게).
-            if (Player && puddles.Any(p => Mathf.Abs(PlayerPosition.x - p.collider.transform.localPosition.x) < ((BoxCollider2D)p.collider).size.x / 2 + PlayerRadius + 0.2f
-                                        && Mathf.Abs(PlayerPosition.y - p.collider.transform.localPosition.y) < ((BoxCollider2D)p.collider).size.y / 2 + PlayerRadius + 0.2f))
-                PlacePlayer(Mission.playerStart, Vector2.right);
+            // 상황 중 깊어질 물 안이나 바로 가장자리에 서 있었다면, 충돌이 켜지기 전에 가장 가까운 물 밖 자리로 짧게 걸어 나간다.
+            // 이미 안전한 자리면 옮기지 않는다.
+            Vector2? escape = null;
+            if (Player)
+            {
+                var willFlood = puddles.Where(p => PeakWater(p) > DeepWater).ToList();
+                if (willFlood.Any(p => Overlaps(p.center, p.size, PlayerFoot, PlayerRadius + 0.15f)))
+                    escape = SafePointNear(PlayerPosition, willFlood);
+            }
             pendingResult = result;
             pendingDone = done;
-            scenario = StartCoroutine(ScenarioRoutine(result, sound, stage));
+            scenario = StartCoroutine(ScenarioRoutine(result, sound, stage, escape));
         }
 
         public void SkipScenario()
@@ -824,9 +920,24 @@ namespace ProcurementHero.Field
             done?.Invoke();
         }
 
-        IEnumerator ScenarioRoutine(FieldEvaluation result, Action<Sfx> sound, Action<int> stage)
+        IEnumerator ScenarioRoutine(FieldEvaluation result, Action<Sfx> sound, Action<int> stage, Vector2? escape)
         {
             stage?.Invoke(0);
+            if (escape.HasValue && Player)
+            {
+                var from = PlayerPosition;
+                var to = escape.Value;
+                Face(to - from);
+                float duration = Mathf.Clamp(Vector2.Distance(from, to) / 5f, 0.2f, 0.6f);
+                yield return Animate(duration, t =>
+                {
+                    var at = Vector2.Lerp(from, to, Ease(t));
+                    Player.position = WorldPoint(at);
+                    player.root.localPosition = at;
+                    player.walkPhase += Delta() * 11f;
+                });
+                PlacePlayer(to, to - from);
+            }
             yield return Animate(ScenarioPassSeconds, t => { hazard = Mathf.SmoothStep(0, 1, t); RenderAll(); });
             stage?.Invoke(1);
             sound?.Invoke(Sfx.Fail);
@@ -1041,6 +1152,80 @@ namespace ProcurementHero.Field
             Player.position = WorldPoint(Mission.playerStart);
         }
 
+        // ───────── 깊은 물 안전 ─────────
+
+        /// <summary>플레이어 충돌 원의 중심(발 쪽, 콜라이더 offset과 같음).</summary>
+        Vector2 PlayerFoot => PlayerPosition + new Vector2(0, -0.1f);
+
+        static bool Overlaps(Vector2 center, Vector2 size, Vector2 point, float radius)
+        {
+            var d = point - center;
+            return Mathf.Abs(d.x) < size.x / 2 + radius && Mathf.Abs(d.y) < size.y / 2 + radius;
+        }
+
+        /// <summary>상황이 가장 심할 때(시설 대응 전) 이 깊은 물의 물높이. 물막이로 막힌 곳은 처음의 얕은 물 그대로다.</summary>
+        float PeakWater(Puddle p)
+        {
+            if (!sites.TryGetValue(p.clearedBy ?? "", out var s)) return 1f;
+            if (s.data.kind != FieldProblemKind.Flood) return 1f;
+            return s.level > 0 && s.solvedBy == FieldItemVisual.Sandbags ? s.data.earlyLevel : 1f;
+        }
+
+        /// <summary>
+        /// from에서 가장 가까운, 막는 물·건물·벽·나무·울타리·지도 끝과 겹치지 않는 자리(플레이어 위치 기준).
+        /// 물 사각형의 네 변 바깥과 네 모서리 바깥을 후보로 고른다. 없으면 출발 지점.
+        /// </summary>
+        Vector2 SafePointNear(Vector2 from, List<Puddle> water)
+        {
+            const float gap = 0.3f;
+            float r = PlayerRadius + gap;
+            var candidates = new List<Vector2>();
+            foreach (var p in water)
+            {
+                float left = p.center.x - p.size.x / 2 - r, right = p.center.x + p.size.x / 2 + r;
+                float bottom = p.center.y - p.size.y / 2 - r, top = p.center.y + p.size.y / 2 + r;
+                var foot = from + new Vector2(0, -0.1f);
+                candidates.Add(new Vector2(left, Mathf.Clamp(foot.y, bottom, top)));
+                candidates.Add(new Vector2(right, Mathf.Clamp(foot.y, bottom, top)));
+                candidates.Add(new Vector2(Mathf.Clamp(foot.x, left, right), bottom));
+                candidates.Add(new Vector2(Mathf.Clamp(foot.x, left, right), top));
+                candidates.Add(new Vector2(left, bottom));
+                candidates.Add(new Vector2(right, bottom));
+                candidates.Add(new Vector2(left, top));
+                candidates.Add(new Vector2(right, top));
+            }
+            Vector2? best = null;
+            float bestDistance = float.MaxValue;
+            foreach (var foot in candidates)
+            {
+                if (!FootFree(foot, water)) continue;
+                var at = foot + new Vector2(0, 0.1f);
+                float d = Vector2.Distance(at, from);
+                if (d < bestDistance) { bestDistance = d; best = at; }
+            }
+            return best ?? Mission.playerStart;
+        }
+
+        bool FootFree(Vector2 foot, List<Puddle> water)
+        {
+            float r = PlayerRadius + 0.02f;
+            if (Mathf.Abs(foot.x) > HalfWidth - r || Mathf.Abs(foot.y) > HalfHeight - r) return false;
+            foreach (var o in Mission.obstacles)
+                if (o.kind != FieldObstacleKind.Puddle && Overlaps(o.center, o.size, foot, r)) return false;
+            foreach (var p in puddles)
+                if ((p.collider.enabled || water.Contains(p)) && Overlaps(p.center, p.size, foot, r)) return false;
+            return true;
+        }
+
+        /// <summary>지금 막혀 있는 깊은 물 안에 플레이어가 있으면 가장 가까운 물 밖으로 바로 옮긴다(밖이면 아무것도 하지 않는다).</summary>
+        void KeepPlayerOutOfDeepWater()
+        {
+            if (!Player || player == null) return;
+            var blocking = puddles.Where(p => p.collider.enabled).ToList();
+            if (!blocking.Any(p => Overlaps(p.center, p.size, PlayerFoot, PlayerRadius))) return;
+            PlacePlayer(SafePointNear(PlayerPosition, blocking), Vector2.down);
+        }
+
         // ───────── 그리기 ─────────
 
         float Response(Site s) => s.level * respond;
@@ -1117,20 +1302,28 @@ namespace ProcurementHero.Field
                 }
                 default:
                 {
+                    // 넓은 얕은 물: 옅은 색, 물높이만큼 퍼진다(통행 가능). 물이 빠진 뒤에는 젖은 바닥 자국만 옅게 남는다.
                     float water = Water(s);
-                    s.overlay.color = Theme.WithAlpha(Theme.Hex(0x4F99DB), 0.62f * water);
-                    s.overlay.transform.localScale = new Vector3(Mathf.Lerp(0.6f, 1f, water), Mathf.Lerp(0.45f, 1f, water), 1);
+                    float wet = 0.12f * hazard * (1f - water);
+                    s.overlay.color = water > 0.02f ? Theme.WithAlpha(ShallowColor, 0.18f + 0.3f * water) : Theme.WithAlpha(WetColor, wet);
+                    float spread = Mathf.Max(water, hazard * 0.8f * (1f - water));
+                    s.overlay.transform.localScale = new Vector3(Mathf.Lerp(0.6f, 1f, spread), Mathf.Lerp(0.45f, 1f, spread), 1);
                     foreach (var w in s.waves) w.color = Theme.WithAlpha(Color.white, 0.6f * Mathf.Clamp01(water * 1.5f - 0.2f));
                     break;
                 }
             }
-            // 물웅덩이는 문제의 물높이를 그대로 따른다: 깊으면 길을 막고(충돌), 얕거나 빠지면 지나갈 수 있다.
+            // 깊은 물은 문제의 물높이를 그대로 따른다: 절반을 넘으면 진한 물·테두리·주의 표지가 나타나고 같은 사각형이 길을 막는다.
             foreach (var p in puddles.Where(p => p.clearedBy == s.data.id))
             {
                 float water = s.data.kind == FieldProblemKind.Flood ? Water(s) : 1f - shown;
-                p.sprite.color = Theme.WithAlpha(Theme.Water, Theme.Water.a * water);
-                p.shine.color = Theme.WithAlpha(Color.white, 0.5f * water);
-                p.collider.enabled = water > 0.5f;
+                bool deep = water > DeepWater;
+                float a = deep ? Mathf.Clamp01((water - DeepWater) / 0.08f) : 0f;
+                a = deep ? Mathf.Max(a, 0.35f) : 0f;
+                p.sprite.color = Theme.WithAlpha(DeepWaterColor, DeepWaterColor.a * a);
+                p.rim.color = Theme.WithAlpha(DeepRimColor, DeepRimColor.a * a);
+                p.shine.color = Theme.WithAlpha(Color.white, 0.45f * a);
+                p.sign.gameObject.SetActive(deep);
+                p.collider.enabled = deep;
             }
             s.resident.mark.color = shown >= 0.99f ? Theme.Warning : Theme.NavySoft;
         }
@@ -1184,12 +1377,7 @@ namespace ProcurementHero.Field
                 bool visible = hazard > 0.05f;
                 v.rig.root.gameObject.SetActive(visible);
                 if (!visible) continue;
-                var pos = VisitorPosition(v);
-                v.moving = Vector2.Distance(pos, v.last) > 0.001f;
-                if (v.moving) FaceRig(v.rig, pos.x - v.last.x);
-                v.last = pos;
-                v.rig.root.localPosition = pos;
-                FieldArt.SetDepth(v.rig.root, pos.y - 0.45f);
+                PlaceVisitor(v);
             }
         }
 
@@ -1234,6 +1422,7 @@ namespace ProcurementHero.Field
 
             // 센서 보행등은 사람이 다가올 때마다 밝기가 바뀐다.
             if (respond > 0f && Mission.theme == FieldTheme.NightAlley) RenderAll();
+            StepCrowd(dt);
             foreach (var v in crowd)
             {
                 if (!v.rig.root.gameObject.activeSelf) continue;

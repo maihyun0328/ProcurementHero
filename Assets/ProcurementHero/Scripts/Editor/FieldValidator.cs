@@ -84,9 +84,25 @@ namespace ProcurementHero.EditorTools
                 if (three == 0) report.Errors.Add(tag + " 예산 안에서 별 3개 조합이 없습니다.");
                 report.Info.Add($"{tag} 조합 {all.Count}개 · 확정 가능 {valid.Count} · 성공 {success} · 별 3개 {three}" + (m.draftNumbers ? " (개발 초안 수치)" : ""));
 
+                // 계획 단계(상황 전, 깊은 물 없음)에는 모든 관찰 지점에 걸어서 갈 수 있어야 한다.
                 foreach (var p in m.problems)
                     if (!Reachable(m, p.observePoint, FieldWorld.ObserveRange * 0.6f))
                         report.Errors.Add($"{tag} '{p.displayName}' 관찰 지점에 걸어서 갈 수 없습니다.");
+                // 상황 뒤(모든 깊은 물이 막힌 최악의 경우)에도 재확인·결과 보기를 위해 모든 문제를 물 밖에서 살펴볼 수 있어야 한다.
+                foreach (var p in m.problems)
+                    if (!Reachable(m, p.observePoint, FieldWorld.ObserveRange * 0.9f, deepWater: true))
+                        report.Errors.Add($"{tag} '{p.displayName}'을 깊은 물이 찬 뒤에는 물 밖에서 살펴볼 수 없습니다.");
+                // 깊은 물은 주민·이용객 대기 자리·설치 자리를 덮지 않는다(물속에 서 있거나 물품을 놓는 모습이 생기지 않게).
+                foreach (var o in m.obstacles.Where(o => o.kind == FieldObstacleKind.Puddle))
+                {
+                    bool Covers(Vector2 at, float r) => Mathf.Abs(at.x - o.center.x) < o.size.x / 2 + r && Mathf.Abs(at.y - o.center.y) < o.size.y / 2 + r;
+                    foreach (var p in m.problems)
+                        if (Covers(p.residentPosition + new Vector2(0, -0.45f), 0.3f)) report.Errors.Add($"{tag} '{p.displayName}' 주민이 깊은 물 안에 서 있습니다.");
+                    foreach (var r in m.crowdRoutes)
+                        if (Covers(r.waitAt + new Vector2(0, -0.45f), 0.3f)) report.Errors.Add($"{tag} 이용객 {r.visitor}의 대기 자리가 깊은 물 안입니다.");
+                    foreach (var sp in m.spots)
+                        if (Covers(sp.position, 0.4f)) report.Errors.Add($"{tag} 설치 자리 '{sp.displayName}'가 깊은 물 안입니다.");
+                }
                 if (!Walkable(m, m.playerStart)) report.Errors.Add(tag + " 시작 위치가 막혀 있습니다.");
             }
         }
@@ -116,14 +132,15 @@ namespace ProcurementHero.EditorTools
 
         const float Cell = 0.25f;
 
-        /// <summary>플레이어 몸 반지름을 고려해 지나갈 수 있는 위치인지.</summary>
-        public static bool Walkable(FieldMissionData m, Vector2 p)
+        /// <summary>플레이어 몸 반지름을 고려해 지나갈 수 있는 위치인지. deepWater면 깊은 물(Puddle)도 막힌 것으로 본다(상황 뒤 최악의 경우).</summary>
+        public static bool Walkable(FieldMissionData m, Vector2 p, bool deepWater = false)
         {
             float r = FieldWorld.PlayerRadius + 0.02f;
             var foot = p + new Vector2(0, -0.1f);
             if (Mathf.Abs(foot.x) > FieldWorld.HalfWidth - r || Mathf.Abs(foot.y) > FieldWorld.HalfHeight - r) return false;
             foreach (var o in m.obstacles)
             {
+                if (o.kind == FieldObstacleKind.Puddle && !deepWater) continue;
                 var half = o.size / 2 + new Vector2(r, r);
                 if (Mathf.Abs(foot.x - o.center.x) < half.x && Mathf.Abs(foot.y - o.center.y) < half.y) return false;
             }
@@ -131,7 +148,7 @@ namespace ProcurementHero.EditorTools
         }
 
         /// <summary>시작 위치에서 격자 탐색으로 target 반경 안의 칸에 닿을 수 있는지.</summary>
-        public static bool Reachable(FieldMissionData m, Vector2 target, float within)
+        public static bool Reachable(FieldMissionData m, Vector2 target, float within, bool deepWater = false)
         {
             int w = Mathf.RoundToInt(FieldWorld.HalfWidth * 2 / Cell), h = Mathf.RoundToInt(FieldWorld.HalfHeight * 2 / Cell);
             Vector2 Pos(int x, int y) => new Vector2(-FieldWorld.HalfWidth + (x + 0.5f) * Cell, -FieldWorld.HalfHeight + (y + 0.5f) * Cell);
@@ -150,7 +167,7 @@ namespace ProcurementHero.EditorTools
                     int nx = x + dx, ny = y + dy;
                     if (nx < 0 || ny < 0 || nx >= w || ny >= h || seen[nx, ny]) continue;
                     seen[nx, ny] = true;
-                    if (Walkable(m, Pos(nx, ny))) queue.Enqueue((nx, ny));
+                    if (Walkable(m, Pos(nx, ny), deepWater)) queue.Enqueue((nx, ny));
                 }
             }
             return false;

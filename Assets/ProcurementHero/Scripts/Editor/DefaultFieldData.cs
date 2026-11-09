@@ -206,14 +206,14 @@ namespace ProcurementHero.EditorTools
             m3.eventCaption = "비가 거세지고 전력 공급이 끊겼어요";
             m3.responseCaption = "정전·수위 센서가 상황을 감지했어요";
             m3.crowd = new List<Vector2> { new Vector2(-0.6f, 1.5f) };
-            // 대피하러 오는 주민: 큰길을 따라 와서 정문 진입로 앞(물 밖)에서 기다리고, 진입로 배수(R)가 실제로 해결되어
-            // 펌프가 작동한 뒤에만 진입로 가운데로 올라가 대피소 앞에 선다. 진입로 끝 대형 펌프(-2.4,-5.4)와 웅덩이(-3.4,-2.6)를 피한다.
+            // 대피하러 오는 주민: 큰길을 따라 와서 정문 진입로 입구(물 밖)에서 기다리고, 진입로 배수(R)가 실제로 해결되어
+            // 깊은 물이 빠진 뒤에만 진입로 가운데로 올라가 대피소 앞에 선다. 진입로 끝 대형 펌프(-2.4,-5.4) 아래쪽 큰길로 지나간다.
             m3.crowdRoutes = new List<FieldCrowdRoute>
             {
                 new FieldCrowdRoute
                 {
-                    visitor = 0, needsProblem = "R", start = new Vector2(-12f, -6.7f), waitAt = new Vector2(-3.6f, -6.7f),
-                    via = new List<Vector2> { new Vector2(0f, -6.6f), new Vector2(0f, 0.9f) }
+                    visitor = 0, needsProblem = "R", start = new Vector2(-12f, -6.7f), waitAt = new Vector2(-0.6f, -6.0f),
+                    via = new List<Vector2> { new Vector2(0f, -5.7f), new Vector2(0f, 0.9f) }
                 }
             };
             m3.budget = 85;
@@ -223,9 +223,9 @@ namespace ProcurementHero.EditorTools
             {
                 Problem("P", "대피소 전력", FieldProblemKind.Power, true, true, new Vector2(0f, 2.2f), new Vector2(0f, 5f), new Vector2(11f, 5f),
                     new Vector2(-2f, 2.2f), "비가 세지면 전기가 끊길까 봐 걱정이에요", "불이 켜져서 안심돼요"),
-                Problem("R", "정문 진입로", FieldProblemKind.Flood, true, true, new Vector2(0f, -2f), new Vector2(0f, -2.6f), new Vector2(4.4f, 6f),
-                    new Vector2(1.6f, -0.6f), "벌써 물이 고였어요. 비가 더 오면 못 들어오겠어요", "이제 정문 길로 안전하게 들어갈 수 있어요."),
-                Problem("B", "보조 통로", FieldProblemKind.Flood, false, false, new Vector2(10f, 0.6f), new Vector2(10f, -0.4f), new Vector2(4f, 7f),
+                Problem("R", "정문 진입로", FieldProblemKind.Flood, true, true, new Vector2(0f, -4.3f), new Vector2(0f, -2.4f), new Vector2(5.2f, 6f),
+                    new Vector2(1.7f, -4.6f), "벌써 물이 고였어요. 비가 더 오면 못 들어오겠어요", "이제 정문 길로 안전하게 들어갈 수 있어요."),
+                Problem("B", "보조 통로", FieldProblemKind.Flood, false, false, new Vector2(10f, 1.5f), new Vector2(10f, -0.4f), new Vector2(4f, 7f),
                     new Vector2(11.4f, 1.6f), "옆길로 빗물이 조금씩 흘러들어요", "이제 옆길로도 다닐 수 있어요")
             };
             Memo(m3, ("P", "배전반 하나뿐 · 비상전원 없음"), ("R", "얕게 고인 물 · 강우 증가 시 진입로 침수 위험"), ("B", "옆길로 빗물이 흘러듦"));
@@ -252,8 +252,10 @@ namespace ProcurementHero.EditorTools
                 Block(FieldObstacleKind.Building, 0f, 5f, 10f, 4f),
                 Block(FieldObstacleKind.Building, -11.5f, -2.5f, 5f, 4f),
                 Block(FieldObstacleKind.Building, 12.5f, 6f, 5f, 3f),
-                Block(FieldObstacleKind.Puddle, -3.4f, -2.6f, 2f, 1.4f, "R"),
-                Block(FieldObstacleKind.Puddle, 10.8f, -2.8f, 1.4f, 1.2f, "B"),
+                // 깊은 물(Puddle): 강우가 늘어 물이 깊어지면 이 사각형만 진하게 보이고 통행을 막는다. 둘레의 넓은 문제 구역은 얕은 물(통행 가능).
+                // 진입로·보조 통로 폭 전체를 덮어, 주민이 기다리는 깊은 물을 플레이어도 지나가지 못한다(풀밭으로 돌아가는 것은 가능).
+                Block(FieldObstacleKind.Puddle, 0f, -2.2f, 4.2f, 3.2f, "R"),
+                Block(FieldObstacleKind.Puddle, 10f, -1f, 3.2f, 3.2f, "B"),
                 Block(FieldObstacleKind.Tree, 6f, 2.6f, 1.2f, 1.2f),
                 Block(FieldObstacleKind.Fence, 13.6f, -1f, 0.5f, 5f)
             };

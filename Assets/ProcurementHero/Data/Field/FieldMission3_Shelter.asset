@@ -52,10 +52,10 @@ MonoBehaviour:
     kind: 4
     required: 1
     mustObserve: 1
-    observePoint: {x: 0, y: -2}
-    zoneCenter: {x: 0, y: -2.6}
-    zoneSize: {x: 4.4, y: 6}
-    residentPosition: {x: 1.6, y: -0.6}
+    observePoint: {x: 0, y: -4.3}
+    zoneCenter: {x: 0, y: -2.4}
+    zoneSize: {x: 5.2, y: 6}
+    residentPosition: {x: 1.7, y: -4.6}
     line: "\uBC8C\uC368 \uBB3C\uC774 \uACE0\uC600\uC5B4\uC694. \uBE44\uAC00 \uB354
       \uC624\uBA74 \uBABB \uB4E4\uC5B4\uC624\uACA0\uC5B4\uC694"
     eventLine: "\uC815\uBB38 \uAE38\uC5D0 \uBB3C\uC774 \uCC28\uC11C \uBABB \uB4E4\uC5B4\uAC00\uC694"
@@ -69,7 +69,7 @@ MonoBehaviour:
     kind: 4
     required: 0
     mustObserve: 0
-    observePoint: {x: 10, y: 0.6}
+    observePoint: {x: 10, y: 1.5}
     zoneCenter: {x: 10, y: -0.4}
     zoneSize: {x: 4, y: 7}
     residentPosition: {x: 11.4, y: 1.6}
@@ -158,12 +158,12 @@ MonoBehaviour:
     size: {x: 5, y: 3}
     clearedBy: 
   - kind: 3
-    center: {x: -3.4, y: -2.6}
-    size: {x: 2, y: 1.4}
+    center: {x: 0, y: -2.2}
+    size: {x: 4.2, y: 3.2}
     clearedBy: R
   - kind: 3
-    center: {x: 10.8, y: -2.8}
-    size: {x: 1.4, y: 1.2}
+    center: {x: 10, y: -1}
+    size: {x: 3.2, y: 3.2}
     clearedBy: B
   - kind: 4
     center: {x: 6, y: 2.6}
@@ -189,7 +189,7 @@ MonoBehaviour:
   - visitor: 0
     needsProblem: R
     start: {x: -12, y: -6.7}
-    waitAt: {x: -3.6, y: -6.7}
+    waitAt: {x: -0.6, y: -6}
     via:
-    - {x: 0, y: -6.6}
+    - {x: 0, y: -5.7}
     - {x: 0, y: 0.9}

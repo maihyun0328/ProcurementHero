@@ -327,15 +327,19 @@ namespace ProcurementHero.Tests
         static bool InsideZone(FieldProblemEntry p, Vector2 at, float margin) =>
             Mathf.Abs(at.x - p.zoneCenter.x) < p.zoneSize.x / 2 + margin && Mathf.Abs(at.y - p.zoneCenter.y) < p.zoneSize.y / 2 + margin;
 
+        static bool InsideBox(FieldObstacle o, Vector2 at, float margin) =>
+            Mathf.Abs(at.x - o.center.x) < o.size.x / 2 + margin && Mathf.Abs(at.y - o.center.y) < o.size.y / 2 + margin;
+
         [Test]
         public void ShelterVisitorWaitsUnlessGateRoadIsDrained()
         {
             var m = M("f3");
             var route = m.crowdRoutes.Single(r => r.visitor == 0);
             var r = m.Problem("R");
+            var deep = m.obstacles.Single(o => o.kind == FieldObstacleKind.Puddle && o.clearedBy == "R");
             Assert.AreEqual("R", route.needsProblem);
-            Assert.IsFalse(InsideZone(r, route.waitAt, 0.4f), "대기 지점은 침수 구역 밖");
-            Assert.IsFalse(m.obstacles.Any(o => Mathf.Abs(route.waitAt.x - o.center.x) < o.size.x / 2 + 0.4f && Mathf.Abs(route.waitAt.y - o.center.y) < o.size.y / 2 + 0.4f), "대기 지점은 장애물 밖");
+            Assert.IsFalse(InsideZone(r, route.waitAt, 0.4f), "대기 지점은 침수 구역(얕은 물 포함) 밖");
+            Assert.IsFalse(m.obstacles.Any(o => InsideBox(o, route.waitAt, 0.4f)), "대기 지점은 장애물 밖");
             var plans = new Dictionary<string, (string, string)[]>
             {
                 ["정문 미해결(전력만)"] = new[] { ("panel", "generator") },
@@ -351,25 +355,164 @@ namespace ProcurementHero.Tests
                 WithWorld(m, world =>
                 {
                     world.ApplyStage(e, 1f, 0f);
-                    Assert.AreEqual(route.waitAt, world.CrowdPosition(0), pair.Key + ": 시설 대응 전에는 모두 대기");
-                    world.ApplyStage(e, 1f, 0.5f);
-                    if (!drained) Assert.AreEqual(route.waitAt, world.CrowdPosition(0), pair.Key + ": 대응 중에도 정문 미해결이면 대기");
+                    world.StepCrowd(1f);
+                    Assert.AreEqual(route.waitAt, world.CrowdPosition(0), pair.Key + ": 시설 대응 전(깊은 물)에는 모두 대기");
+                    world.ApplyStage(e, 1f, 0.3f);
+                    world.StepCrowd(1f);
+                    Assert.AreEqual(route.waitAt, world.CrowdPosition(0), pair.Key + ": 물이 아직 깊으면(대응 초반) 대기");
+                    // 대응 후반: 배수가 됐으면 일정한 걸음으로 걷기 시작하고, 아니면 계속 대기. 어느 순간에도 막힌 깊은 물 안에 들어가지 않는다.
+                    world.ApplyStage(e, 1f, 0.8f);
+                    for (int i = 0; i < 40; i++)
+                    {
+                        world.StepCrowd(0.05f);
+                        var at = world.CrowdPosition(0);
+                        if (world.PuddleBlocking("R")) Assert.IsFalse(InsideBox(deep, at + new Vector2(0, -0.45f), 0f), pair.Key + " 막힌 깊은 물 안 " + i);
+                        if (!drained) Assert.IsFalse(InsideZone(r, at, 0f), pair.Key + " 정문 미해결이면 진입로에 들어가지 않음 " + i);
+                    }
+                    if (!drained) Assert.AreEqual(route.waitAt, world.CrowdPosition(0), pair.Key + ": 정문 미해결이면 대기");
                     else Assert.AreNotEqual(route.waitAt, world.CrowdPosition(0), pair.Key + ": 배수가 되면 걷기 시작");
                     world.ApplyInstant(e);
                     var final = world.CrowdPosition(0);
                     Assert.Less(Vector2.Distance(drained ? m.crowd[0] : route.waitAt, final), 0.01f, pair.Key + ": 최종 자리(건너뛰기·이어하기·엔딩과 같은 ApplyInstant)");
-                    // 걷는 동안 어느 순간에도 물이 찬 구역 안에 있지 않다(배수된 경우만 진입로를 지남).
-                    for (float t = 0; t <= 1.001f; t += 0.05f)
-                    {
-                        world.ApplyStage(e, 1f, t);
-                        var at = world.CrowdPosition(0);
-                        if (!drained) Assert.IsFalse(InsideZone(r, at, 0f), pair.Key + " t=" + t);
-                    }
                     world.ApplyInstant(null);
                     Assert.AreEqual(0, world.VisibleCrowd, pair.Key + ": 재계획(상황 전)이면 다시 숨김");
                     return 0;
                 });
             }
+        }
+
+        [Test]
+        public void VisitorWalkFinishesBeforeScenarioEnds()
+        {
+            // 걸음은 '깊은 물이 빠진 순간(대응 절반)'부터 연출이 끝날 때까지 안에 끝나야 최종 상태로 튀지 않는다.
+            var m = M("f3");
+            var route = m.crowdRoutes.Single(r => r.visitor == 0);
+            var points = new List<Vector2> { route.waitAt };
+            points.AddRange(route.via);
+            points.Add(m.crowd[route.visitor]);
+            float length = 0;
+            for (int i = 1; i < points.Count; i++) length += Vector2.Distance(points[i - 1], points[i]);
+            float available = FieldWorld.ScenarioRespondSeconds * 0.5f + FieldWorld.ScenarioSettleSeconds;
+            Assert.Less(length / FieldWorld.VisitorSpeed, available, "걸음 시간");
+        }
+
+        // ───────── 깊은 물: 그림과 통행 범위가 같다 ─────────
+
+        [Test]
+        public void DeepWaterLooksDeepExactlyWhenItBlocks()
+        {
+            var m = M("f3");
+            var spec = m.ToSpec();
+            WithWorld(m, world =>
+            {
+                foreach (var plan in FieldRules.AllPlans(spec))
+                {
+                    var e = FieldRules.Evaluate(spec, plan);
+                    for (float h = 0; h <= 1.001f; h += 0.25f)
+                    for (float rr = 0; rr <= 1.001f; rr += 0.25f)
+                    {
+                        world.ApplyStage(e, h, rr);
+                        foreach (var id in new[] { "R", "B" })
+                        {
+                            bool blocking = world.PuddleBlocking(id);
+                            Assert.AreEqual(blocking, world.DeepShown(id) > 0.01f, $"{id} h{h} r{rr}: 진하게 보이는 것과 막히는 것이 같다");
+                        }
+                    }
+                }
+                return 0;
+            });
+        }
+
+        [Test]
+        public void FloodStagesShallowThenDeepThenReopened()
+        {
+            var m = M("f3");
+            var pumped = Eval(m, ("panel", "generator"), ("door", "pump"), ("detour", "sandbags"));
+            var none = Eval(m, ("panel", "generator"));
+            WithWorld(m, world =>
+            {
+                world.ApplyStage(none, 0f, 0f);
+                Assert.IsFalse(world.PuddleBlocking("R"), "상황 전: 얕은 물이라 지나갈 수 있다");
+                world.ApplyStage(none, 1f, 0f);
+                Assert.IsTrue(world.PuddleBlocking("R"), "강우 증가 후: 깊은 물이 진입로를 막는다");
+                Assert.IsTrue(world.PuddleBlocking("B"));
+                world.ApplyInstant(none);
+                Assert.IsTrue(world.PuddleBlocking("R"), "대비 없으면 상황 뒤에도 막힌다");
+
+                world.ApplyStage(pumped, 1f, 0f);
+                Assert.IsTrue(world.PuddleBlocking("R"), "펌프도 물이 차기 전에는 물을 없애지 못한다(강우 최고조에는 깊다)");
+                Assert.IsFalse(world.PuddleBlocking("B"), "모래주머니는 처음부터 물이 넘어오지 않게 막는다");
+                world.ApplyInstant(pumped);
+                Assert.IsFalse(world.PuddleBlocking("R"), "배수 후 다시 열린 통로");
+                Assert.IsFalse(world.PuddleBlocking("B"));
+                Assert.AreEqual(0f, world.DeepShown("R"));
+                world.ApplyInstant(null);
+                Assert.IsFalse(world.PuddleBlocking("R"), "재계획: 상황 전 얕은 물로 복원");
+                Assert.IsFalse(world.PuddleBlocking("B"));
+                return 0;
+            });
+        }
+
+        [Test]
+        public void PlayerStandingInFutureDeepWaterIsMovedJustOutside()
+        {
+            var m = M("f3");
+            var deep = m.obstacles.Single(o => o.kind == FieldObstacleKind.Puddle && o.clearedBy == "R");
+            var none = Eval(m, ("panel", "generator"));
+            var starts = new Dictionary<string, Vector2>
+            {
+                ["물 한가운데"] = deep.center,
+                ["물 경계(아래)"] = deep.center + new Vector2(0.3f, -deep.size.y / 2 - 0.1f),
+                ["물 경계(오른쪽)"] = deep.center + new Vector2(deep.size.x / 2 + 0.2f, 0.5f)
+            };
+            foreach (var pair in starts)
+            {
+                WithWorld(m, world =>
+                {
+                    world.PlacePlayer(pair.Value, Vector2.right);
+                    world.PlayScenario(none, null, null, null);
+                    world.SkipScenario();
+                    Assert.IsTrue(world.PuddleBlocking("R"));
+                    Assert.IsFalse(world.PlayerInDeepWater, pair.Key + ": 막힌 깊은 물 안에 남지 않는다");
+                    var at = world.PlayerPosition;
+                    Assert.Less(Vector2.Distance(at, pair.Value), 3.2f, pair.Key + ": 가까운 물 밖으로만 옮긴다(출발 지점으로 순간이동하지 않음)");
+                    Assert.IsTrue(FieldValidator.Walkable(m, at, deepWater: true), pair.Key + ": 옮긴 자리는 벽·물과 겹치지 않는다 " + at);
+                    return 0;
+                });
+            }
+        }
+
+        [Test]
+        public void SafePlayerIsNotTeleported()
+        {
+            var m = M("f3");
+            var none = Eval(m, ("panel", "generator"));
+            foreach (var at in new[] { m.playerStart, new Vector2(-5f, -6.4f), new Vector2(4.5f, -1f) })
+                WithWorld(m, world =>
+                {
+                    world.PlacePlayer(at, Vector2.right);
+                    world.PlayScenario(none, null, null, null);
+                    world.SkipScenario();
+                    Assert.Less(Vector2.Distance(world.PlayerPosition, at), 0.001f, "이미 안전한 자리면 그대로 " + at);
+                    world.ApplyInstant(none);
+                    Assert.Less(Vector2.Distance(world.PlayerPosition, at), 0.001f, "이어하기·엔딩처럼 바로 적용해도 그대로 " + at);
+                    return 0;
+                });
+        }
+
+        [Test]
+        public void InstantStateAlsoKeepsPlayerOutOfDeepWater()
+        {
+            var m = M("f3");
+            var deep = m.obstacles.Single(o => o.kind == FieldObstacleKind.Puddle && o.clearedBy == "B");
+            WithWorld(m, world =>
+            {
+                world.PlacePlayer(deep.center, Vector2.right);
+                world.ApplyInstant(Eval(m, ("panel", "generator")));
+                Assert.IsTrue(world.PuddleBlocking("B"));
+                Assert.IsFalse(world.PlayerInDeepWater);
+                return 0;
+            });
         }
 
         [Test]
