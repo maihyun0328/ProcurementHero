@@ -358,6 +358,20 @@ namespace ProcurementHero.Core.Field
         public bool IsComplete => results.All(r => r != null && r.Success);
         public bool HasAny => results.Any(r => r != null);
         public int TotalStars => results.Where(r => r != null).Sum(r => r.Stars);
+
+        /// <summary>
+        /// 완주 뒤 현장 재도전 결과를 대표 결과로 삼을지 정하고 반영한다. 성공(별 2개 이상)이면서 지금 대표 결과보다 별이 많거나 같을 때만
+        /// 바꾼다(같으면 최신 성공 배정). 실패·더 낮은 별은 대표 결과·다른 현장·해금을 건드리지 않는다. 바꿨으면 true.
+        /// 대표 결과는 한 번의 시도 그대로 통째로 바꾸며, 다른 시도의 배정과 섞지 않는다.
+        /// </summary>
+        public bool SubmitRetry(int index, FieldEvaluation attempt)
+        {
+            if (attempt == null || !attempt.Success) return false;
+            var current = results[index];
+            if (current != null && attempt.Stars < current.Stars) return false;
+            results[index] = attempt;
+            return true;
+        }
         public int MaxStars => results.Length * 3;
         public void Reset() => Array.Clear(results, 0, results.Length);
     }

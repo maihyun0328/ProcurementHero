@@ -27,6 +27,24 @@ namespace ProcurementHero.Field
         public bool draftSaved;
         public string selectedSpot;
         public List<FieldSaveMission> missions = new List<FieldSaveMission>();
+
+        // ── 완주 뒤 현장 재도전(이번 형식에서 추가, 버전 1 그대로) ──
+        // 이전 저장에는 이 값들이 없고, 읽으면 빈 문자열·false·빈 목록이 되어 '재도전 없음(일반 진행)'으로 복원된다.
+        /// <summary>재도전 중인 현장 ID. 비어 있으면 일반 진행. 세 현장을 모두 성공한 저장에서만 유효하다.</summary>
+        public string retryMission;
+        /// <summary>이번 재도전 시도를 확정(승인)했는지. 확정 배정은 retryPicks, 대표 결과(missions)와 따로 둔다.</summary>
+        public bool retryConfirmed;
+        public List<FieldSavePick> retryPicks = new List<FieldSavePick>();
+        /// <summary>이번 재도전 시도에서 관찰한 곳. 대표 결과의 관찰 기록(missions[].observed)과 섞지 않는다.</summary>
+        public List<string> retryObserved = new List<string>();
+    }
+
+    /// <summary>저장할 재도전 맥락(일반 진행이면 null).</summary>
+    public sealed class FieldRetry
+    {
+        public int Index;
+        public FieldEvaluation Result;
+        public IEnumerable<string> Observed;
     }
 
     [Serializable]
@@ -133,9 +151,15 @@ namespace ProcurementHero.Field
         public FieldPlan Draft = new FieldPlan();
         public string SelectedSpot;
         public readonly List<string> Warnings = new List<string>();
+        /// <summary>완주 뒤 재도전 중인 현장(-1이면 일반 진행). Current와 같다.</summary>
+        public int RetryIndex = -1;
+        /// <summary>이번 재도전 시도의 확정 결과(확정 전이면 null). 대표 결과(Results)와 별개.</summary>
+        public FieldEvaluation RetryResult;
+        public HashSet<string> RetryObserved = new HashSet<string>();
+        public bool Retrying => RetryIndex >= 0;
 
         /// <summary>이어할 만한 진행이 있는지(관찰·계획·확정 중 하나라도).</summary>
-        public bool HasProgress => Results.Any(r => r != null) || Observed.Any(o => o.Count > 0) || Draft.Assignments.Count > 0;
+        public bool HasProgress => Results.Any(r => r != null) || Observed.Any(o => o.Count > 0) || Draft.Assignments.Count > 0 || Retrying;
     }
 
     public static class FieldSave
@@ -178,7 +202,7 @@ namespace ProcurementHero.Field
 
         /// <summary>지금 진행을 저장 데이터로 만든다. 확정 결과는 배정만, 별·비용은 저장하지 않는다.</summary>
         public static FieldSaveData Capture(IList<FieldMissionData> missions, FieldProgress progress, Func<int, IEnumerable<string>> observed,
-            int current, FieldSavePhase phase, FieldPlan draft, string selectedSpot)
+            int current, FieldSavePhase phase, FieldPlan draft, string selectedSpot, FieldRetry retry = null)
         {
             bool editing = draft != null && phase != FieldSavePhase.Review && phase != FieldSavePhase.Complete;
             var data = new FieldSaveData
@@ -200,6 +224,14 @@ namespace ProcurementHero.Field
                     picks = r != null ? Picks(r.Assignments) : new List<FieldSavePick>(),
                     observed = (observed(i) ?? Enumerable.Empty<string>()).OrderBy(x => x).ToList()
                 });
+            }
+            if (retry != null && retry.Index >= 0 && retry.Index < missions.Count && phase != FieldSavePhase.Complete)
+            {
+                data.currentMission = missions[retry.Index].id;
+                data.retryMission = missions[retry.Index].id;
+                data.retryConfirmed = retry.Result != null;
+                data.retryPicks = retry.Result != null ? Picks(retry.Result.Assignments) : new List<FieldSavePick>();
+                data.retryObserved = (retry.Observed ?? Enumerable.Empty<string>()).OrderBy(x => x).ToList();
             }
             return data;
         }
@@ -286,7 +318,47 @@ namespace ProcurementHero.Field
                     : new FieldPlan();
             }
             restored.SelectedSpot = cm.Spot(data.selectedSpot) != null ? data.selectedSpot : (cm.spots.Count > 0 ? cm.spots[0].id : null);
+            RestoreRetry(missions, data, restored, complete);
             return restored;
+        }
+
+        /// <summary>
+        /// 재도전 맥락 복원. 세 현장을 모두 성공한 저장에서만 쓰고(아니면 버리고 일반 진행), 그 현장을 처음 상태부터 다시 하는 시도로 되살린다.
+        /// 확정한 시도는 그 시도의 관찰로 확정 조건을 다시 검사해, 맞지 않으면 확정 전 계획으로 낮춘다. 대표 결과는 건드리지 않는다.
+        /// </summary>
+        static void RestoreRetry(IList<FieldMissionData> missions, FieldSaveData data, FieldRestored restored, bool complete)
+        {
+            if (string.IsNullOrEmpty(data.retryMission)) return;
+            int index = Enumerable.Range(0, missions.Count).FirstOrDefault(i => missions[i].id == data.retryMission);
+            if (missions[index].id != data.retryMission || !complete || restored.Phase == FieldSavePhase.Complete)
+            {
+                restored.Warnings.Add("재도전 정보를 쓸 수 없어(알 수 없는 현장·완주 전·이미 끝남) 일반 진행으로 엽니다");
+                return;
+            }
+            var m = missions[index];
+            var spec = m.ToSpec();
+            restored.RetryIndex = index;
+            restored.Current = index;
+            restored.RetryObserved = new HashSet<string>((data.retryObserved ?? new List<string>()).Where(id => m.Problem(id) != null));
+            restored.Draft = data.phase == FieldSavePhase.Explore.ToString() || !data.retryConfirmed
+                ? BuildPlan(m, spec, data.draftSaved ? data.draft : new List<FieldSavePick>(), restored.Warnings)
+                : new FieldPlan();
+            restored.Phase = FieldSavePhase.Explore;
+            if (data.retryConfirmed)
+            {
+                var plan = BuildPlan(m, spec, data.retryPicks, restored.Warnings);
+                if (FieldRules.CanConfirm(spec, plan, restored.RetryObserved) == ConfirmBlock.None)
+                {
+                    restored.RetryResult = FieldRules.Evaluate(spec, plan);
+                    restored.Phase = FieldSavePhase.Review;
+                }
+                else
+                {
+                    restored.Warnings.Add($"{m.id}: 재도전 확정 결과가 유효하지 않아 확정 전 계획으로 되돌림");
+                    restored.Draft = plan;
+                }
+            }
+            restored.SelectedSpot = m.Spot(data.selectedSpot) != null ? data.selectedSpot : (m.spots.Count > 0 ? m.spots[0].id : null);
         }
     }
 }

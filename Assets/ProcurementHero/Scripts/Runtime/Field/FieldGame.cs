@@ -25,7 +25,9 @@ namespace ProcurementHero.Field
         Result,
         Ending,
         /// <summary>앱 실행 직후 한 번만 나오는 시작 연출. Space·Enter·Esc·버튼으로 건너뛴다.</summary>
-        Intro
+        Intro,
+        /// <summary>세 현장을 모두 성공한 뒤 클리어한 현장을 골라 다시 도전하는 화면.</summary>
+        Select
     }
 
     /// <summary>
@@ -123,7 +125,7 @@ namespace ProcurementHero.Field
             {
                 if (paused || modalStack.Count > 0) return 0f;
                 return State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Scenario || State == FieldState.Review
-                       || State == FieldState.Title || State == FieldState.Arriving || State == FieldState.Ending
+                       || State == FieldState.Title || State == FieldState.Arriving || State == FieldState.Ending || State == FieldState.Select
                     ? Time.deltaTime : 0f;
             }
         }
@@ -176,6 +178,7 @@ namespace ProcurementHero.Field
                 else if (State == FieldState.Notebook && recommendPanel) CloseRecommend();
                 else if (State == FieldState.Notebook) CloseNotebook();
                 else if (State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Scenario || State == FieldState.Review || State == FieldState.Arriving) OpenPause();
+                else if (State == FieldState.Select) ShowTitle();
                 return;
             }
 
@@ -283,8 +286,12 @@ namespace ProcurementHero.Field
 
             ShowBubble(problem, world.LineFor(problem));
             if (!observed.Add(problem.id)) return; // 다시 봐도 기록이나 기록 연출은 반복하지 않는다.
-            if (!observedByMission.TryGetValue(MissionIndex, out var keep)) observedByMission[MissionIndex] = keep = new HashSet<string>();
-            keep.Add(problem.id);
+            if (Retrying) retryObserved.Add(problem.id); // 재도전 시도의 관찰은 대표 결과의 관찰 기록과 섞지 않는다.
+            else
+            {
+                if (!observedByMission.TryGetValue(MissionIndex, out var keep)) observedByMission[MissionIndex] = keep = new HashSet<string>();
+                keep.Add(problem.id);
+            }
             MarkSaveDirty();
             // 담당자가 몸을 숙여 살피고 → 주민이 반응하고 → 기록 그림이 수첩으로 날아가 → 관찰 수가 오른다.
             world.PlayObserve(problem);
@@ -330,7 +337,7 @@ namespace ProcurementHero.Field
         {
             saveDirty = false;
             if (!database) return;
-            var data = FieldSave.Capture(database.missions, Progress, ObservedFor, MissionIndex, savePhase, Plan, SelectedSpot);
+            var data = FieldSave.Capture(database.missions, Progress, ObservedFor, MissionIndex, savePhase, Plan, SelectedSpot, CurrentRetry());
             FieldSave.Store.Write(FieldSave.ToJson(data));
         }
 
@@ -353,7 +360,7 @@ namespace ProcurementHero.Field
         GameObject lastSelected;
 
         /// <summary>버튼으로만 조작하는 화면(타이틀·수첩·결과·엔딩·창)인지. 현장 이동 화면은 선택을 일부러 비워 둔다.</summary>
-        bool MenuScreen => modalStack.Count > 0 || State == FieldState.Title || State == FieldState.Notebook || State == FieldState.Result || State == FieldState.Ending;
+        bool MenuScreen => modalStack.Count > 0 || State == FieldState.Title || State == FieldState.Notebook || State == FieldState.Result || State == FieldState.Ending || State == FieldState.Select;
 
         /// <summary>
         /// 창 전환(Alt+Tab 등)이나 빈 곳 클릭으로 키보드 선택이 사라지면 Enter·방향키가 아무것도 하지 않게 된다.
@@ -401,6 +408,7 @@ namespace ProcurementHero.Field
         {
             Progress.Reset();
             observedByMission.Clear();
+            EndRetry();
             resume = r;
             saveDirty = false;
             if (r == null)
@@ -422,13 +430,56 @@ namespace ProcurementHero.Field
             Plan = r.Draft ?? new FieldPlan();
             SelectedSpot = r.SelectedSpot;
             LastConfirmed = Progress.Get(r.Current);
+            if (r.Retrying)
+            {
+                retryIndex = r.RetryIndex;
+                retryResult = r.RetryResult;
+                retryObserved.UnionWith(r.RetryObserved);
+                LastConfirmed = retryResult;
+            }
+        }
+
+        // ───────── 완주 뒤 현장 재도전 ─────────
+
+        int retryIndex = -1;
+        FieldEvaluation retryResult;
+        readonly HashSet<string> retryObserved = new HashSet<string>();
+        /// <summary>이번 재도전 확정 직전 그 현장의 대표 별(결과 문구용).</summary>
+        int retryPreviousStars = -1;
+        bool retryImproved;
+
+        /// <summary>완주 뒤 현장을 골라 다시 도전하는 중인지. 이때 결과는 시도별로 보여 주고, 대표 결과는 더 좋을 때만 바뀐다.</summary>
+        public bool Retrying => retryIndex >= 0;
+        public int RetryIndex => retryIndex;
+        /// <summary>이번 재도전 시도의 확정 결과(검증용).</summary>
+        public FieldEvaluation RetryResult => retryResult;
+
+        FieldRetry CurrentRetry() => Retrying ? new FieldRetry { Index = retryIndex, Result = retryResult, Observed = retryObserved } : null;
+
+        void EndRetry()
+        {
+            retryIndex = -1;
+            retryResult = null;
+            retryObserved.Clear();
+            retryImproved = false;
+            retryPreviousStars = -1;
+        }
+
+        /// <summary>현장 선택의 '재도전': 고른 현장만 처음 상태(관찰·계획 없음)로 다시 시작한다. 다른 현장 결과·완주는 그대로다.</summary>
+        public void StartRetry(int index)
+        {
+            if (!Progress.IsComplete || index < 0 || index >= database.missions.Count) return;
+            selectFocus = index;
+            EndRetry();
+            retryIndex = index;
+            StartMission(index, retry: true);
         }
 
         /// <summary>지금 진행을 저장 형식으로 만들었다가 같은 검증으로 되살린다(앱을 다시 켰을 때와 같은 이어하기).</summary>
         void RefreshResume()
         {
             if (!database) return;
-            resume = FieldSave.Restore(database.missions, FieldSave.Capture(database.missions, Progress, ObservedFor, MissionIndex, savePhase, Plan, SelectedSpot));
+            resume = FieldSave.Restore(database.missions, FieldSave.Capture(database.missions, Progress, ObservedFor, MissionIndex, savePhase, Plan, SelectedSpot, CurrentRetry()));
         }
 
         /// <summary>타이틀 '이어하기': 저장된 단계 그대로 되살린다(연출 중간 프레임은 되살리지 않는다).</summary>
@@ -438,6 +489,14 @@ namespace ProcurementHero.Field
             if (r == null)
             {
                 StartMission(0);
+                return;
+            }
+            if (r.Retrying)
+            {
+                selectFocus = r.Current;
+                // 재도전 중 종료했던 저장: 그 현장을 재도전 중이라는 맥락 그대로(확정했으면 재확인, 아니면 그 시도의 관찰·계획).
+                if (r.Phase == FieldSavePhase.Review && r.RetryResult != null) StartMissionReview(r.Current, retry: true);
+                else StartMission(r.Current, draft: r.Draft, spot: r.SelectedSpot, keepObserved: true, retry: true);
                 return;
             }
             switch (r.Phase)
@@ -458,12 +517,13 @@ namespace ProcurementHero.Field
         }
 
         /// <summary>확정 결과를 바로 적용한 재확인 상태로 현장을 연다(설치 도중·결과 화면에서 종료했던 경우).</summary>
-        void StartMissionReview(int index)
+        void StartMissionReview(int index, bool retry = false)
         {
-            var result = Progress.Get(index);
+            if (!retry) EndRetry();
+            var result = retry ? retryResult : Progress.Get(index);
             if (result == null)
             {
-                StartMission(index, keepObserved: true);
+                StartMission(index, keepObserved: true, retry: retry);
                 return;
             }
             BeginScreen(FieldState.Installing);
@@ -474,7 +534,8 @@ namespace ProcurementHero.Field
             reviewChecked = false;
             LastConfirmed = result;
             observed.Clear();
-            if (observedByMission.TryGetValue(index, out var saved)) observed.UnionWith(saved);
+            if (retry) observed.UnionWith(retryObserved);
+            else if (observedByMission.TryGetValue(index, out var saved)) observed.UnionWith(saved);
             Plan = new FieldPlan();
             foreach (var pair in result.Assignments) Plan.Toggle(Spec, pair.Key, pair.Value);
             SelectedSpot = Mission.spots.Count > 0 ? Mission.spots[0].id : null;
@@ -500,6 +561,9 @@ namespace ProcurementHero.Field
 
         void BeginScreen(FieldState next)
         {
+            // 현장 선택 화면을 떠날 때 키보드로 고르고 있던 카드를 기억한다(다시 오면 같은 카드).
+            if (State == FieldState.Select && EventSystem.current && EventSystem.current.currentSelectedGameObject is GameObject picked
+                && picked.name.StartsWith("Retry") && int.TryParse(picked.name.Substring(5), out var card)) selectFocus = card;
             StopAllCoroutines();
             ResetCamera();
             CloseAllModals();
@@ -525,8 +589,10 @@ namespace ProcurementHero.Field
 
         /// <param name="draft">이어하기: 확정 전(또는 재계획 중) 계획을 그대로 되살린다.</param>
         /// <param name="keepObserved">이어하기: 이 현장에서 이미 관찰한 기록을 지우지 않는다.</param>
-        public void StartMission(int index, bool replan = false, FieldPlan draft = null, string spot = null, bool keepObserved = false)
+        /// <param name="retry">완주 뒤 재도전 시도로 연다(관찰·결과를 대표 기록과 따로 둔다). 아니면 재도전 맥락을 끝낸다.</param>
+        public void StartMission(int index, bool replan = false, FieldPlan draft = null, string spot = null, bool keepObserved = false, bool retry = false)
         {
+            if (!retry) EndRetry();
             BeginScreen(FieldState.Explore);
             MissionIndex = index;
             Mission = database.missions[index];
@@ -534,10 +600,21 @@ namespace ProcurementHero.Field
             confirmLocked = false;
             reviewChecked = false;
 
-            if (!observedByMission.TryGetValue(index, out var saved)) observedByMission[index] = saved = new HashSet<string>();
             observed.Clear();
-            if (replan || keepObserved) observed.UnionWith(saved);
-            else saved.Clear();
+            if (retry)
+            {
+                // 재도전은 처음 상태에서 시작한다(이어하기면 그 시도에서 관찰한 곳만 되살림). 대표 결과의 관찰 기록은 지우지 않는다.
+                replan = false;
+                retryResult = null;
+                if (keepObserved) observed.UnionWith(retryObserved);
+                else retryObserved.Clear();
+            }
+            else
+            {
+                if (!observedByMission.TryGetValue(index, out var saved)) observedByMission[index] = saved = new HashSet<string>();
+                if (replan || keepObserved) observed.UnionWith(saved);
+                else saved.Clear();
+            }
 
             var previous = Progress.Get(index);
             if (replan && previous != null)
@@ -647,8 +724,23 @@ namespace ProcurementHero.Field
             notebookBusy = true;
             var snapshot = FieldRules.Evaluate(Spec, Plan);
             LastConfirmed = snapshot;
-            Progress.Set(MissionIndex, snapshot);
-            observedByMission[MissionIndex] = new HashSet<string>(observed);
+            if (Retrying)
+            {
+                // 재도전: 이번 시도는 따로 두고, 성공이면서 별이 같거나 많을 때만 대표 결과(완주 기록·엔딩·합계)를 이 시도로 통째로 바꾼다.
+                retryResult = snapshot;
+                retryPreviousStars = Progress.Get(MissionIndex)?.Stars ?? -1;
+                retryImproved = Progress.SubmitRetry(MissionIndex, snapshot);
+                if (retryImproved)
+                {
+                    observedByMission[MissionIndex] = new HashSet<string>(observed);
+                    FieldRecords.SubmitTotal(Progress.TotalStars);
+                }
+            }
+            else
+            {
+                Progress.Set(MissionIndex, snapshot);
+                observedByMission[MissionIndex] = new HashSet<string>(observed);
+            }
             // 확정 즉시 저장한다. 설치 도중 꺼져도 다음 실행에서 이 결과를 적용한 재확인 상태로 이어진다.
             savePhase = FieldSavePhase.Review;
             SaveProgress();
@@ -780,7 +872,7 @@ namespace ProcurementHero.Field
         {
             var top = UIKit.Panel(hudRoot, "TopBar", Theme.WithAlpha(Theme.Navy, 0.88f), ShapeSprites.Square).rectTransform;
             top.Region(0, 0.925f, 1, 1);
-            var title = UIKit.Text(top, "Title", $"현장 {MissionIndex + 1} · {Mission.title}", 30, Color.white, TextAlignmentOptions.MidlineLeft, true);
+            var title = UIKit.Text(top, "Title", $"현장 {MissionIndex + 1}{(Retrying ? " 재도전" : "")} · {Mission.title}", 30, Color.white, TextAlignmentOptions.MidlineLeft, true);
             title.rectTransform.Region(0, 0, 0.3f, 1).offsetMin = new Vector2(28, 0);
             title.enableAutoSizing = true;
             title.fontSizeMin = 18;

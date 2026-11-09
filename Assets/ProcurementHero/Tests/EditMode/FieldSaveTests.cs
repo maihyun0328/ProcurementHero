@@ -151,6 +151,149 @@ namespace ProcurementHero.Tests
             Assert.AreEqual(0, e.Draft.Assignments.Count);
         }
 
+        // ───────── 완주 뒤 현장 재도전 ─────────
+
+        static readonly string[][] AllObserved = { new[] { "A", "B", "C" }, new[] { "H", "W" }, new[] { "P", "R" } };
+
+        /// <summary>세 현장 완주 별 2·3·2.</summary>
+        FieldProgress Complete232()
+        {
+            var p = new FieldProgress(database.missions.Count);
+            p.Set(0, Eval(M(0), ("entrance", "walklight"), ("stairtop", "streetlamp")));
+            p.Set(1, Eval(M(1), ("hall", "aircon"), ("corridor", "water"), ("yard", "shade")));
+            p.Set(2, Eval(M(2), ("panel", "generator"), ("door", "pump")));
+            Assert.AreEqual(new[] { 2, 3, 2 }, Enumerable.Range(0, 3).Select(i => p.Get(i).Stars).ToArray());
+            Assert.IsTrue(p.IsComplete);
+            return p;
+        }
+
+        FieldRestored RoundTripRetry(FieldProgress progress, FieldSavePhase phase, FieldPlan draft, FieldRetry retry)
+        {
+            var data = FieldSave.Capture(database.missions, progress, i => AllObserved[i], retry.Index, phase, draft, null, retry);
+            return FieldSave.Restore(database.missions, FieldSave.Parse(FieldSave.ToJson(data)));
+        }
+
+        [Test]
+        public void RetryWithMoreStarsReplacesOnlyThatMission()
+        {
+            var p = Complete232();
+            var second = p.Get(1);
+            var third = p.Get(2);
+            var attempt = Eval(M(0), ("entrance", "walklight"), ("stairtop", "streetlamp"), ("park", "walklight"));
+            Assert.AreEqual(3, attempt.Stars);
+            Assert.IsTrue(p.SubmitRetry(0, attempt));
+            Assert.AreSame(attempt, p.Get(0), "대표 결과는 이번 시도 그대로(배정 포함)");
+            Assert.AreSame(second, p.Get(1), "다른 현장 결과는 그대로");
+            Assert.AreSame(third, p.Get(2));
+            Assert.AreEqual(8, p.TotalStars, "합계는 현장별 대표 결과로 다시 계산(누적 아님)");
+            Assert.IsTrue(p.IsComplete);
+        }
+
+        [Test]
+        public void RetryFailureOrFewerStarsKeepsRepresentativeAndUnlocks()
+        {
+            var p = Complete232();
+            var first = p.Get(0);
+            var fail = Eval(M(0), ("entrance", "walklight"));
+            Assert.AreEqual(1, fail.Stars);
+            Assert.IsFalse(p.SubmitRetry(0, fail), "실패는 대표 결과를 바꾸지 않는다");
+            Assert.AreSame(first, p.Get(0));
+            Assert.IsTrue(p.IsComplete, "완주 유지");
+            Assert.IsTrue(p.IsUnlocked(1) && p.IsUnlocked(2), "해금 유지");
+            var lower = Eval(M(1), ("hall", "aircon"), ("corridor", "water"));
+            Assert.AreEqual(2, lower.Stars);
+            Assert.IsFalse(p.SubmitRetry(1, lower), "별 3 → 2 하락은 반영하지 않는다");
+            Assert.AreEqual(3, p.Get(1).Stars);
+            Assert.AreEqual(7, p.TotalStars);
+        }
+
+        [Test]
+        public void RetrySameStarsWithDifferentPlanUsesLatestWholePlan()
+        {
+            var p = Complete232();
+            var other = Eval(M(0), ("entrance", "streetlamp"), ("stairtop", "streetlamp"));
+            Assert.AreEqual(2, other.Stars);
+            Assert.IsTrue(p.SubmitRetry(0, other), "같은 별의 성공이면 최신 배정을 대표 결과로");
+            CollectionAssert.AreEquivalent(other.Assignments, p.Get(0).Assignments, "다른 시도의 배정과 섞지 않는다");
+            Assert.AreEqual(7, p.TotalStars);
+        }
+
+        [Test]
+        public void RetryInProgressRoundTripsSeparateFromRepresentative()
+        {
+            var p = Complete232();
+            var r = RoundTripRetry(p, FieldSavePhase.Explore, Plan(M(0), ("entrance", "streetlamp")),
+                new FieldRetry { Index = 0, Result = null, Observed = new[] { "A" } });
+            Assert.IsTrue(r.Retrying);
+            Assert.AreEqual(0, r.RetryIndex);
+            Assert.AreEqual(0, r.Current);
+            Assert.AreEqual(FieldSavePhase.Explore, r.Phase);
+            Assert.IsNull(r.RetryResult);
+            CollectionAssert.AreEquivalent(new[] { "A" }, r.RetryObserved, "이번 시도의 관찰");
+            CollectionAssert.AreEquivalent(new[] { "A", "B", "C" }, r.Observed[0], "대표 결과의 관찰 기록은 그대로");
+            Assert.AreEqual("streetlamp", r.Draft.ItemAt("entrance"));
+            Assert.AreEqual(new[] { 2, 3, 2 }, r.Results.Select(x => x.Stars).ToArray(), "중간 종료가 완주 기록을 훼손하지 않는다");
+            Assert.IsTrue(r.HasProgress);
+        }
+
+        [Test]
+        public void ConfirmedRetryRestoresToRetryReviewWithThisAttempt()
+        {
+            var p = Complete232();
+            var fail = Eval(M(0), ("entrance", "walklight"));
+            p.SubmitRetry(0, fail);
+            var r = RoundTripRetry(p, FieldSavePhase.Review, null, new FieldRetry { Index = 0, Result = fail, Observed = AllObserved[0] });
+            Assert.AreEqual(FieldSavePhase.Review, r.Phase);
+            Assert.AreEqual(1, r.RetryResult.Stars, "재확인은 이번 시도(별 1) 그대로");
+            Assert.AreEqual(2, r.Results[0].Stars, "대표 결과는 별 2 그대로");
+
+            var better = Eval(M(2), ("panel", "generator"), ("door", "pump"), ("detour", "sandbags"));
+            var p2 = Complete232();
+            Assert.IsTrue(p2.SubmitRetry(2, better));
+            var r2 = RoundTripRetry(p2, FieldSavePhase.Review, null, new FieldRetry { Index = 2, Result = better, Observed = AllObserved[2] });
+            Assert.AreEqual(3, r2.RetryResult.Stars);
+            Assert.AreEqual(3, r2.Results[2].Stars);
+            CollectionAssert.AreEquivalent(better.Assignments, r2.Results[2].Assignments, "엔딩 다시 보기에 쓰는 대표 배정");
+        }
+
+        [Test]
+        public void RetryConfirmedWithoutRequiredObservationIsDemoted()
+        {
+            var p = Complete232();
+            var attempt = Eval(M(0), ("entrance", "walklight"), ("stairtop", "streetlamp"), ("park", "walklight"));
+            var r = RoundTripRetry(p, FieldSavePhase.Review, null, new FieldRetry { Index = 0, Result = attempt, Observed = new[] { "A" } });
+            Assert.IsTrue(r.Retrying);
+            Assert.IsNull(r.RetryResult, "관찰이 모자란 확정은 자동으로 확정하지 않는다");
+            Assert.AreEqual(FieldSavePhase.Explore, r.Phase);
+            Assert.AreEqual("walklight", r.Draft.ItemAt("park"), "계획으로 남겨 다시 고칠 수 있게");
+            Assert.AreEqual(2, r.Results[0].Stars);
+        }
+
+        [Test]
+        public void RetryInfoIsIgnoredUnlessAllMissionsSucceededOrAfterResult()
+        {
+            var partial = new FieldProgress(database.missions.Count);
+            partial.Set(0, Eval(M(0), ("entrance", "walklight"), ("stairtop", "streetlamp")));
+            var data = FieldSave.Capture(database.missions, partial, i => AllObserved[i], 0, FieldSavePhase.Explore, new FieldPlan(), null,
+                new FieldRetry { Index = 0, Observed = new string[0] });
+            var r = FieldSave.Restore(database.missions, FieldSave.Parse(FieldSave.ToJson(data)));
+            Assert.IsFalse(r.Retrying, "완주 전 저장의 재도전 정보는 쓰지 않는다");
+
+            // 재도전 결과를 본 뒤(엔딩까지 본 상태)에는 재도전 정보를 저장하지 않는다.
+            var done = FieldSave.Capture(database.missions, Complete232(), i => AllObserved[i], 0, FieldSavePhase.Complete, null, null,
+                new FieldRetry { Index = 0, Observed = AllObserved[0] });
+            Assert.IsTrue(string.IsNullOrEmpty(done.retryMission));
+            var rd = FieldSave.Restore(database.missions, FieldSave.Parse(FieldSave.ToJson(done)));
+            Assert.AreEqual(FieldSavePhase.Complete, rd.Phase);
+            Assert.IsFalse(rd.Retrying);
+
+            // 이전 형식(재도전 필드 없음)은 일반 진행으로 읽힌다.
+            var legacy = FieldSave.ToJson(done).Replace("\"retryMission\"", "\"_old1\"").Replace("\"retryConfirmed\"", "\"_old2\"");
+            var rl = FieldSave.Restore(database.missions, FieldSave.Parse(legacy));
+            Assert.IsFalse(rl.Retrying);
+            Assert.AreEqual(FieldSavePhase.Complete, rl.Phase);
+        }
+
         [Test]
         public void UnknownIdsAreDroppedWithoutBreakingRestore()
         {

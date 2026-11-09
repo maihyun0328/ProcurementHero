@@ -64,10 +64,20 @@ namespace ProcurementHero.Field
             UIKit.VerticalList(list, 12).childForceExpandHeight = true;
             var buttons = new List<Selectable>();
             var r = Resume;
-            if (r != null && r.Phase == FieldSavePhase.Complete && Progress.IsComplete)
+            if (r != null && r.Retrying && Progress.IsComplete)
             {
-                // 엔딩까지 본 저장: 이어하기 대신 엔딩 다시 보기(기록은 다시 올라가지 않음)와 새로 시작.
+                // 완주 뒤 재도전 도중 종료한 저장: 그 시도 이어하기, 다른 현장 고르기, 새로 시작.
+                var m = database.missions[r.Current];
+                string step = r.Phase == FieldSavePhase.Review ? "상황 후 재확인" : "살펴보기";
+                buttons.Add(UIKit.Button(list, "Continue", $"이어하기 · 현장 {r.Current + 1} 재도전 ({step})", ContinueGame));
+                buttons.Add(UIKit.Button(list, "Select", "현장 선택", ShowFieldSelect, ButtonStyle.Secondary));
+                buttons.Add(UIKit.Button(list, "NewGame", "처음부터 시작", ConfirmNewGame, ButtonStyle.Secondary));
+            }
+            else if (r != null && r.Phase == FieldSavePhase.Complete && Progress.IsComplete)
+            {
+                // 엔딩까지 본 저장: 이어하기 대신 엔딩 다시 보기(기록은 다시 올라가지 않음), 현장 골라 재도전, 새로 시작.
                 buttons.Add(UIKit.Button(list, "Replay", "엔딩 다시 보기", ShowEnding));
+                buttons.Add(UIKit.Button(list, "Select", "현장 선택", ShowFieldSelect, ButtonStyle.Secondary));
                 buttons.Add(UIKit.Button(list, "NewGame", "처음부터 시작", ConfirmNewGame, ButtonStyle.Secondary));
             }
             else if (r != null && r.HasProgress)
@@ -132,9 +142,100 @@ namespace ProcurementHero.Field
             }, "취소");
         }
 
+        // ───────── 현장 선택(완주 뒤 재도전) ─────────
+
+        /// <summary>현장 선택 화면에서 마지막으로 고른 카드(돌아왔을 때 같은 카드를 다시 고른다).</summary>
+        int selectFocus;
+        readonly List<Button> selectButtons = new List<Button>();
+
+        /// <summary>
+        /// 세 현장을 모두 성공한 저장에서만 연다. 현장마다 이름·대표 그림·대표 결과의 별·'재도전'을 카드로 보여 준다.
+        /// 마우스와 방향키·Enter로 고르고 '뒤로'·Esc로 타이틀에 돌아간다. 진행 초기화는 하지 않는다.
+        /// </summary>
+        public void ShowFieldSelect()
+        {
+            if (!Progress.IsComplete)
+            {
+                ShowTitle();
+                return;
+            }
+            // 재도전을 고르기 전까지는 '엔딩까지 본' 상태로 둔다(진행 중이던 재도전 시도는 새로 고르면 바뀐다).
+            if (saveDirty) SaveProgress();
+            BeginScreen(FieldState.Select);
+            world = FieldWorld.Build(worldRoot, database.missions[0], false);
+            world.Delta = () => FieldDelta;
+
+            var root = UIKit.Rect(screenRoot, "FieldSelect").Fill();
+            UIKit.Panel(root, "Shade", Theme.WithAlpha(Theme.Navy, 0.68f), ShapeSprites.Square).rectTransform.Fill();
+            UIKit.Text(root, "Title", "현장 선택", 64, Color.white, TextAlignmentOptions.Center, true).rectTransform.Region(0.1f, 0.84f, 0.9f, 0.95f);
+            UIKit.Text(root, "Sub", "다시 도전할 현장을 골라요 · 더 좋은 결과일 때만 기록이 바뀌어요", 28, Theme.Cream, TextAlignmentOptions.Center)
+                .rectTransform.Region(0.1f, 0.78f, 0.9f, 0.84f);
+
+            var row = UIKit.Rect(root, "Cards").Region(0.08f, 0.24f, 0.92f, 0.76f);
+            UIKit.HorizontalList(row, 36);
+            selectButtons.Clear();
+            for (int i = 0; i < database.missions.Count; i++)
+            {
+                int index = i;
+                var m = database.missions[i];
+                var r = Progress.Get(i);
+                var card = UIKit.Panel(row, "Card" + i, Theme.WithAlpha(Theme.Cream, 0.97f)).rectTransform;
+                UIKit.Text(card, "No", $"현장 {i + 1}", 28, Theme.TealDark, TextAlignmentOptions.Center, true).rectTransform.Region(0.05f, 0.86f, 0.95f, 0.96f);
+                var name = UIKit.Text(card, "Name", m.title, 32, Theme.Navy, TextAlignmentOptions.Center, true);
+                name.rectTransform.Region(0.06f, 0.7f, 0.94f, 0.86f);
+                name.enableAutoSizing = true;
+                name.fontSizeMin = 24;
+                name.fontSizeMax = 32;
+                // 대표 그림: 그 현장의 문제 그림(관찰 대상)들.
+                var art = UIKit.Panel(card, "Art", Theme.WithAlpha(Theme.NavySoft, 0.1f)).rectTransform;
+                art.Region(0.1f, 0.42f, 0.9f, 0.68f);
+                var icons = UIKit.Rect(art, "Icons").Fill(8, 8, 8, 8);
+                UIKit.HorizontalList(icons, 14, null, TextAnchor.MiddleCenter, false);
+                foreach (var kind in m.problems.Select(p => p.kind).Distinct())
+                {
+                    var slot = UIKit.Rect(icons, "Icon");
+                    UIKit.Layout(slot, 96, 96);
+                    FieldArt.ProblemIcon(slot, kind, 88).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(88, 88));
+                }
+                int stars = r?.Stars ?? 0;
+                UIKit.Text(card, "Stars", new string('★', stars) + new string('☆', 3 - stars), 60, Theme.Warning, TextAlignmentOptions.Center, true)
+                    .rectTransform.Region(0.05f, 0.28f, 0.95f, 0.41f);
+                int best = FieldRecords.BestStars(m.id);
+                UIKit.Text(card, "Best", best >= 0 ? $"현장 결과 ★{stars} · 최고 기록 ★{best}" : $"현장 결과 ★{stars}", 24, Theme.NavySoft, TextAlignmentOptions.Center)
+                    .rectTransform.Region(0.05f, 0.2f, 0.95f, 0.28f);
+                var retry = UIKit.Button(card, "Retry" + i, "재도전", () => StartRetry(index), ButtonStyle.Primary, 32);
+                ((RectTransform)retry.transform).Region(0.14f, 0.04f, 0.86f, 0.17f);
+                selectButtons.Add(retry);
+            }
+            UIKit.Text(root, "Total", $"별 합계 ★ {Progress.TotalStars} / {Progress.MaxStars}  · 현장별 결과로 계산", 30, Color.white, TextAlignmentOptions.Center, true)
+                .rectTransform.Region(0.1f, 0.15f, 0.9f, 0.22f);
+            var back = UIKit.Button(root, "Back", "뒤로 (Esc)", ShowTitle, ButtonStyle.Secondary, 28);
+            ((RectTransform)back.transform).Region(0.42f, 0.05f, 0.58f, 0.12f);
+
+            // 카드는 좌우로, 아래로 가면 '뒤로', 위로 가면 마지막에 고른 카드.
+            for (int i = 0; i < selectButtons.Count; i++)
+                selectButtons[i].navigation = new Navigation
+                {
+                    mode = Navigation.Mode.Explicit,
+                    selectOnLeft = selectButtons[(i - 1 + selectButtons.Count) % selectButtons.Count],
+                    selectOnRight = selectButtons[(i + 1) % selectButtons.Count],
+                    selectOnDown = back
+                };
+            int focus = Mathf.Clamp(selectFocus, 0, selectButtons.Count - 1);
+            back.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnUp = selectButtons[focus] };
+            // 이 화면을 연 Enter가 같은 프레임에 '재도전'을 누르지 않게 다음 프레임에 고른다.
+            if (EventSystem.current) EventSystem.current.SetSelectedGameObject(null);
+            SelectNextFrame(() => selectButtons[focus]);
+        }
+
+        /// <summary>현장 선택 화면의 재도전 버튼(검증용).</summary>
+        public IReadOnlyList<Button> SelectButtons => selectButtons;
+
         // ───────── 결과 ─────────
 
         FieldBook.Parts resultBook;
+        /// <summary>지금 결과 화면이 재도전 시도의 결과인지(버튼·문구용).</summary>
+        bool resultRetry;
 
         /// <summary>
         /// 결과는 수첩의 기록 페이지로 보여 준다: 손에서 수첩이 펼쳐져 이번 계획 페이지가 보이고,
@@ -144,6 +245,14 @@ namespace ProcurementHero.Field
         {
             if (State != FieldState.Review || LastConfirmed == null) return;
             SetState(FieldState.Result);
+            // 재도전 결과를 보면 그 시도는 끝난다(대표 결과 반영은 승인 때 이미 끝남). 이후 종료·타이틀은 '엔딩까지 본' 상태로 이어진다.
+            resultRetry = Retrying;
+            if (resultRetry)
+            {
+                retryIndex = -1;
+                savePhase = FieldSavePhase.Complete;
+                SaveProgress();
+            }
             if (resultButton) Destroy(resultButton.gameObject);
             resultButton = null;
             if (reviewBanner) Destroy(reviewBanner.gameObject);
@@ -254,7 +363,8 @@ namespace ProcurementHero.Field
             UIKit.Text(right, "Stars", stars, 92, Theme.Warning, TextAlignmentOptions.Center, true).rectTransform.Region(0.04f, 0.62f, 0.62f, 0.86f);
             UIKit.Text(right, "StarCount", $"별 {r.Stars}개" + (newBest ? "  · 새 기록!" : ""), 26, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0.04f, 0.56f, 0.62f, 0.63f);
 
-            string guide = r.Stars == 3 ? (MissionIndex + 1 >= database.missions.Count ? "미리 준비한 덕분에 상황이 와도 모두 괜찮았어요! 새봄시의 하루를 확인해 봐요." : "미리 준비한 덕분에 상황이 와도 모두 괜찮았어요! 다음 현장으로 가요.")
+            string guide = resultRetry ? RetryGuide(r)
+                : r.Stars == 3 ? (MissionIndex + 1 >= database.missions.Count ? "미리 준비한 덕분에 상황이 와도 모두 괜찮았어요! 새봄시의 하루를 확인해 봐요." : "미리 준비한 덕분에 상황이 와도 모두 괜찮았어요! 다음 현장으로 가요.")
                 : r.Success ? "필요한 곳은 모두 대비했어요. 추가 목표까지 준비하면 별 3개예요."
                 : r.Stars == 1 ? "상황이 오자 불편한 곳이 남았어요. 붉게 표시된 곳을 다시 계획해 봐요."
                 : "필수 문제에 대비하지 못했어요. 상황 전으로 돌아가 자리와 물품을 다시 골라 봐요.";
@@ -263,6 +373,18 @@ namespace ProcurementHero.Field
             var bar = UIKit.Rect(right, "Buttons").Region(0.06f, 0.06f, 0.94f, 0.26f);
             UIKit.VerticalList(bar, 12).childForceExpandHeight = true;
             var list = new List<Selectable>();
+            if (resultRetry)
+            {
+                // 재도전 결과: 같은 현장 다시 · 현장 선택 · 타이틀. 나머지 현장은 다시 시작하지 않는다.
+                int index = MissionIndex;
+                list.Add(UIKit.Button(bar, "Again", "같은 현장 다시", () => { if (ResultReady) StartRetry(index); }));
+                var retryRow = UIKit.Rect(bar, "Row");
+                UIKit.HorizontalList(retryRow, 12);
+                list.Add(UIKit.Button(retryRow, "Select", "현장 선택", () => { if (ResultReady) ShowFieldSelect(); }, ButtonStyle.Secondary));
+                list.Add(UIKit.Button(retryRow, "Title", "타이틀로", () => { if (ResultReady) ShowTitle(); }, ButtonStyle.Secondary));
+                UIKit.ChainNavigation(list.ToArray(), true);
+                return;
+            }
             bool last = MissionIndex >= database.missions.Count - 1;
             if (r.Success)
                 list.Add(UIKit.Button(bar, "Next", last ? "엔딩 보기" : "다음 현장", () =>
@@ -276,6 +398,25 @@ namespace ProcurementHero.Field
             list.Add(UIKit.Button(buttonsRow, "Replan", "다시 계획하기", () => StartMission(MissionIndex, replan: true), r.Success ? ButtonStyle.Secondary : ButtonStyle.Primary));
             list.Add(UIKit.Button(buttonsRow, "Title", "타이틀로", ShowTitle, ButtonStyle.Secondary));
             UIKit.ChainNavigation(list.ToArray(), true);
+        }
+
+        bool ResultReady => resultBook == null || resultBook.group.interactable;
+
+        /// <summary>
+        /// 재도전 결과 문구: 이번 시도의 별과, 이번 시도가 대표 결과가 됐는지(합계는 현장별 대표 결과로 다시 계산).
+        /// 이어하기로 되살린 재확인에서도 맞도록, 대표 결과와 이번 배정이 같은지로 판단한다(이전 별은 이번 실행에서 승인했을 때만 안다).
+        /// </summary>
+        string RetryGuide(FieldEvaluation r)
+        {
+            var rep = Progress.Get(MissionIndex);
+            string total = $"별 합계 ★ {Progress.TotalStars} / {Progress.MaxStars}";
+            bool isRep = rep != null && rep.Assignments.Count == r.Assignments.Count
+                         && r.Assignments.All(a => rep.Assignments.TryGetValue(a.Key, out var item) && item == a.Value);
+            if (isRep && retryImproved && retryPreviousStars >= 0 && r.Stars > retryPreviousStars)
+                return $"대표 결과가 ★{retryPreviousStars} → ★{r.Stars}로 바뀌었어요.\n{total}";
+            if (isRep) return $"이번 시도 ★{r.Stars}를 이 현장의 대표 결과로 남겼어요.\n{total}";
+            if (r.Success) return $"이번 시도 ★{r.Stars} · 대표 결과 ★{rep?.Stars ?? 0}가 그대로 남아요.\n{total}";
+            return $"이번 시도는 필수 대비가 부족했어요. 대표 결과 ★{rep?.Stars ?? 0}와 완주 기록은 그대로예요.";
         }
 
         /// <summary>현재 현장 완료 → 페이지를 넘겨 다음 현장 소개 → 수첩을 덮고 출발. 건너뛰기(Space·Enter) 가능.</summary>
@@ -367,6 +508,7 @@ namespace ProcurementHero.Field
                 return;
             }
             BeginScreen(FieldState.Ending);
+            EndRetry();
             savePhase = FieldSavePhase.Complete;
             SaveProgress();
             endingFinal = false;
@@ -658,11 +800,12 @@ namespace ProcurementHero.Field
             string record = $"별 합계 ★ {total} / {Progress.MaxStars}" + (endingNewBest ? "  · 새 기록!" : $"  · 최고 기록 ★ {FieldRecords.BestTotal}");
             UIKit.Text(page, "Total", record, 34, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0.05f, 0.16f, 0.95f, 0.25f);
 
-            var bar = UIKit.Rect(page, "Buttons").Region(0.2f, 0.03f, 0.8f, 0.13f);
+            var bar = UIKit.Rect(page, "Buttons").Region(0.1f, 0.03f, 0.9f, 0.13f);
             UIKit.HorizontalList(bar, 20);
             var again = UIKit.Button(bar, "Again", "처음부터 다시", ConfirmNewGame);
+            var select = UIKit.Button(bar, "Select", "현장 선택", ShowFieldSelect, ButtonStyle.Secondary);
             var toTitle = UIKit.Button(bar, "Title", "타이틀로", ShowTitle, ButtonStyle.Secondary);
-            UIKit.ChainNavigation(new Selectable[] { again, toTitle }, false);
+            UIKit.ChainNavigation(new Selectable[] { again, select, toTitle }, false);
             if (EventSystem.current) EventSystem.current.SetSelectedGameObject(null);
             // 건너뛴 Enter가 같은 프레임에 '처음부터 다시'를 누르지 않게 다음 프레임에 선택한다.
             SelectNextFrame(() => again);
