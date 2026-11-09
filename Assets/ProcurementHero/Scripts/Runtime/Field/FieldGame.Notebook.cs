@@ -174,7 +174,8 @@ namespace ProcurementHero.Field
             legend.enableAutoSizing = true;
             legend.fontSizeMin = 20;
             legend.fontSizeMax = 22;
-            var obsTitle = UIKit.Text(left, "ObservedTitle", "현장 확인 기록 <size=21><color=#55607E>· 카드를 고르면 자세히</color></size>", 24, Theme.Navy, TextAlignmentOptions.MidlineLeft, true);
+            var obsTitle = UIKit.Text(left, "ObservedTitle", "현장 확인 기록", 24, Theme.Navy, TextAlignmentOptions.MidlineLeft, true);
+            observedTitle = obsTitle;
             obsTitle.rectTransform.Region(0.05f, 0.39f, 0.95f, 0.44f);
             // 관찰 카드 영역은 아래 띠(계획·예산) 바로 위까지. 카드는 두 줄 격자로 놓는다.
             observedRow = UIKit.Rect(left, "Observed").Region(0.04f, BandTop + 0.005f, 0.96f, 0.385f);
@@ -250,7 +251,7 @@ namespace ProcurementHero.Field
             DrawBudgetAndConfirm(preview);
             ShowReach(null);
             if (recommendButton) recommendButton.interactable = !confirmLocked && FieldRules.MissingObservations(Spec, observed) == 0;
-            if (aiNote) aiNote.text = FieldRules.MissingObservations(Spec, observed) > 0 ? "관찰을 마치면 AI 단서를 볼 수 있어요" : "막히면 AI 단서를 확인해요 →";
+            if (aiNote) aiNote.text = FieldRules.MissingObservations(Spec, observed) > 0 ? "필수 관찰 뒤 볼 수 있어요" : "막히면 AI 단서를 확인해요 →";
 
             // 다시 그린 뒤에도 같은 항목에 키보드 선택을 되돌린다.
             if (keep != null)
@@ -411,7 +412,9 @@ namespace ProcurementHero.Field
         void DrawObserved()
         {
             UIKit.Clear(observedRow);
-            var list = Mission.problems.Where(p => p.mustObserve || observed.Contains(p.id)).ToList();
+            // 전체 관찰 대상(추가 포함)을 모두 카드로 둔다. 관찰 전 카드는 '아직 못 봄'만 보인다(추가 대상도 종류·단서는 숨김).
+            var list = Mission.problems.ToList();
+            if (observedTitle) observedTitle.text = $"현장 확인 기록 {FieldRules.ObservedCount(Spec, observed)}/{FieldRules.ObservableCount(Spec)} <size=21><color=#55607E>· 카드를 고르면 자세히</color></size>";
             int columns = 2, rows = Mathf.Max(1, Mathf.CeilToInt(list.Count / (float)columns));
             for (int i = 0; i < list.Count; i++)
             {
@@ -429,7 +432,7 @@ namespace ProcurementHero.Field
                 rt.offsetMax -= new Vector2(col == columns - 1 ? 0 : 6, 0);
                 if (seen) FieldArt.ProblemIcon(rt, p.kind, 50).Place(new Vector2(0, 0.5f), new Vector2(38, 0), new Vector2(50, 50));
                 else FieldArt.Magnifier(rt, 44).Place(new Vector2(0, 0.5f), new Vector2(38, 0), new Vector2(44, 44));
-                var name = UIKit.Text(rt, "Name", seen ? (p.required ? "" : "추가 · ") + p.displayName : "아직 못 봄", 24, seen ? Theme.Navy : Theme.NavySoft,
+                var name = UIKit.Text(rt, "Name", (p.required ? "" : "추가 · ") + (seen ? p.displayName : "아직 못 봄"), 24, seen ? Theme.Navy : Theme.NavySoft,
                     TextAlignmentOptions.BottomLeft, true);
                 name.rectTransform.Region(0, 0.5f, 1, 1).offsetMin = new Vector2(74, 0);
                 name.rectTransform.offsetMax = new Vector2(-40, -4);
@@ -449,6 +452,7 @@ namespace ProcurementHero.Field
         }
 
         RectTransform detailPanel;
+        TextMeshProUGUI observedTitle;
         string detailProblem;
 
         /// <summary>자세히 패널이 열려 있는지(검증용).</summary>
@@ -642,7 +646,7 @@ namespace ProcurementHero.Field
             {
                 case ConfirmBlock.ObservationMissing:
                     FieldArt.Magnifier(reasonRow, 34).Place(new Vector2(0, 0.5f), new Vector2(20, 0), new Vector2(34, 34));
-                    text = $"관찰이 {FieldRules.MissingObservations(Spec, observed)}곳 남았어요";
+                    text = $"필수 관찰이 {FieldRules.MissingObservations(Spec, observed)}곳 남았어요";
                     break;
                 case ConfirmBlock.NothingAssigned:
                     UIKit.Shape(reasonRow, "Spot", ShapeSprites.Circle, Theme.Teal, new Vector2(0, 0.5f), new Vector2(20, 0), new Vector2(26, 26));
@@ -783,7 +787,7 @@ namespace ProcurementHero.Field
             var spot = h.SpotId != null ? Mission.Spot(h.SpotId) : null;
             switch (h.Kind)
             {
-                case FieldHintKind.NeedObservation: return $"아직 살펴볼 곳이 {h.Amount}곳 남았어요. 현장을 먼저 확인해요.";
+                case FieldHintKind.NeedObservation: return $"필수 관찰이 {h.Amount}곳 남았어요. 현장을 먼저 확인해요.";
                 case FieldHintKind.MissingRequired: return $"관찰한 곳 중 '{p.displayName}'에 {Need(p.kind)} 대비가 빠져 있어요.";
                 case FieldHintKind.Overlap: return $"'{p.displayName}'에 {Need(p.kind)} 대비 효과가 겹치고 있어요. 한쪽 예산을 다른 곳에 쓸 수 있어요.";
                 case FieldHintKind.NoEffect: return $"'{spot.displayName}'에 고른 물품은 관찰한 곳 중 닿는 곳이 없어요.";

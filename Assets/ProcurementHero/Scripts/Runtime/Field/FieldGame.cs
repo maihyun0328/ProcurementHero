@@ -912,7 +912,8 @@ namespace ProcurementHero.Field
             var mag = FieldArt.Magnifier(counter, 60);
             mag.Place(new Vector2(0, 0.5f), new Vector2(46, 0), new Vector2(60, 60));
             observeCounter = UIKit.Text(counter, "Text", "", 26, Theme.Navy, TextAlignmentOptions.MidlineLeft, true);
-            observeCounter.rectTransform.Fill(88, 10, 0, 0);
+            observeCounter.rectTransform.Fill(88, 10, 4, 4);
+            observeCounter.lineSpacing = -8;
 
             notebookButton = UIKit.Button(hudRoot, "NotebookButton", "", OpenNotebook, ButtonStyle.Secondary);
             Destroy(notebookButton.transform.Find("Label").gameObject);
@@ -980,12 +981,14 @@ namespace ProcurementHero.Field
                 text.fontSizeMin = 20;
                 text.fontSizeMax = 22;
                 if (solved) FieldArt.Tick(cell, 30, Theme.Success).Place(new Vector2(0, 0.5f), new Vector2(38, -14), new Vector2(30, 30));
-                else if (!seen && p.mustObserve)
+                else if (!seen)
                     UIKit.Text(cell, "Unknown", "?", 28, Theme.Warning, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0, 0.5f), new Vector2(38, -14), new Vector2(30, 30));
             }
-            int need = Mission.problems.Count(p => p.mustObserve);
-            int done = Mission.problems.Count(p => p.mustObserve && observed.Contains(p.id));
-            if (observeCounter) observeCounter.text = done < need ? $"관찰 {done}/{need}" : "관찰 완료";
+            // 전체 관찰 진행도(추가 대상 포함)와 승인에 필요한 필수 관찰을 나눠 보여 준다.
+            int total = FieldRules.ObservableCount(Spec), done = FieldRules.ObservedCount(Spec, observed);
+            int need = FieldRules.RequiredObservationCount(Spec), missing = FieldRules.MissingObservations(Spec, observed);
+            string required = missing > 0 ? $"필수 {need - missing}/{need}" : "필수 관찰 완료";
+            if (observeCounter) observeCounter.text = $"관찰 {done}/{total}\n<size=21><color=#{ColorUtility.ToHtmlStringRGB(missing > 0 ? Theme.NavySoft : Theme.TealDark)}>{required}</color></size>";
         }
 
         void BuildInstallHud()

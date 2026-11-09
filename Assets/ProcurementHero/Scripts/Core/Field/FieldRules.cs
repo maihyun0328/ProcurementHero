@@ -247,8 +247,19 @@ namespace ProcurementHero.Core.Field
             return new HashSet<string>(evaluation.Solved.Where(observed.Contains));
         }
 
+        /// <summary>승인에 필요한 필수 관찰 중 아직 하지 않은 수(승인 조건). 추가 대상은 세지 않는다.</summary>
         public static int MissingObservations(FieldMissionSpec mission, ICollection<string> observed) =>
             mission.Problems.Count(p => p.MustObserve && !observed.Contains(p.Id));
+
+        /// <summary>전체 관찰 진행도의 분모: 추가 대상을 포함해 이 현장에서 관찰할 수 있는 모든 대상 수(미션 데이터에서 계산).</summary>
+        public static int ObservableCount(FieldMissionSpec mission) => mission.Problems.Count;
+
+        /// <summary>전체 관찰 진행도: 이 현장의 대상 중 관찰한 서로 다른 대상 수(같은 대상 재관찰·다른 현장 ID는 세지 않음).</summary>
+        public static int ObservedCount(FieldMissionSpec mission, ICollection<string> observed) =>
+            mission.Problems.Count(p => observed.Contains(p.Id));
+
+        /// <summary>필수 관찰 대상 수(승인 조건의 분모).</summary>
+        public static int RequiredObservationCount(FieldMissionSpec mission) => mission.Problems.Count(p => p.MustObserve);
 
         /// <summary>
         /// 수첩의 '추천안 비교'(가상 실증 보조). 필수 관찰을 마치기 전에는 null.

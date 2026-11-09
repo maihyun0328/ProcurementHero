@@ -396,6 +396,42 @@ namespace ProcurementHero.Tests
             Assert.Less(length / FieldWorld.VisitorSpeed, available, "걸음 시간");
         }
 
+        // ───────── 관찰 진행도(전체)와 필수 관찰(승인 조건) ─────────
+
+        [Test]
+        public void ObservationProgressCountsAllTargetsFromDataButApprovalNeedsOnlyRequired()
+        {
+            var expected = new Dictionary<string, (int total, int required)> { ["f1"] = (4, 3), ["f2"] = (3, 2), ["f3"] = (3, 2) };
+            foreach (var m in database.missions)
+            {
+                var spec = m.ToSpec();
+                Assert.AreEqual(m.problems.Count, FieldRules.ObservableCount(spec), m.id + " 분모는 데이터의 대상 수");
+                Assert.AreEqual(expected[m.id].total, FieldRules.ObservableCount(spec), m.id + " 전체 대상");
+                Assert.AreEqual(expected[m.id].required, FieldRules.RequiredObservationCount(spec), m.id + " 필수 대상");
+                var observed = new HashSet<string>();
+                Assert.AreEqual(0, FieldRules.ObservedCount(spec, observed));
+                var extra = m.problems.First(p => !p.mustObserve);
+                // 추가 대상부터 관찰: 전체 진행도는 오르지만 필수 관찰 완료로 보지 않는다.
+                observed.Add(extra.id);
+                observed.Add(extra.id); // 같은 대상 재관찰은 늘지 않음
+                Assert.AreEqual(1, FieldRules.ObservedCount(spec, observed), m.id);
+                Assert.AreEqual(expected[m.id].required, FieldRules.MissingObservations(spec, observed), m.id + " 추가만 관찰했으면 필수는 그대로 남음");
+                Assert.AreEqual(ConfirmBlock.ObservationMissing, FieldRules.CanConfirm(spec, Plan(m, (m.spots[0].id, m.spots[0].options[0].itemId)), observed), m.id);
+                // 다른 현장의 ID는 세지 않는다.
+                observed.Add("not-a-problem");
+                Assert.AreEqual(1, FieldRules.ObservedCount(spec, observed), m.id);
+                // 필수만 모두 관찰(추가는 빼고): 승인 조건은 기존처럼 통과.
+                var requiredOnly = new HashSet<string>(m.problems.Where(p => p.mustObserve).Select(p => p.id));
+                Assert.AreEqual(0, FieldRules.MissingObservations(spec, requiredOnly));
+                Assert.AreEqual(expected[m.id].total - 1, FieldRules.ObservedCount(spec, requiredOnly), m.id + " 필수만 보면 전체는 아직 덜 됨");
+                var spot = m.spots.First(sp => sp.options.Any(o => o.solves.Count > 0));
+                Assert.AreNotEqual(ConfirmBlock.ObservationMissing, FieldRules.CanConfirm(spec, Plan(m, (spot.id, spot.options[0].itemId)), requiredOnly), m.id + " 추가 대상은 승인 조건이 아님");
+                // 전부 관찰
+                var all = new HashSet<string>(m.problems.Select(p => p.id));
+                Assert.AreEqual(expected[m.id].total, FieldRules.ObservedCount(spec, all), m.id);
+            }
+        }
+
         // ───────── 깊은 물: 그림과 통행 범위가 같다 ─────────
 
         [Test]

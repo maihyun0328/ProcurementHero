@@ -447,15 +447,16 @@ namespace ProcurementHero.Field
                     52, Theme.Navy, TextAlignmentOptions.Center).rectTransform.Region(0.06f, 0.45f, 0.94f, 0.85f);
                 UIKit.Text(resultBook.left, "Line", m.intro, 26, Theme.NavySoft, TextAlignmentOptions.Center).rectTransform.Region(0.08f, 0.2f, 0.92f, 0.42f);
                 ClearPage(resultBook.right);
-                UIKit.Text(resultBook.right, "Goals", "살펴볼 곳", 30, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0.05f, 0.78f, 0.95f, 0.9f);
+                UIKit.Text(resultBook.right, "Goals", $"살펴볼 곳 {m.problems.Count}곳 <size=24><color=#55607E>· 필수 {m.problems.Count(p => p.mustObserve)}곳</color></size>", 30, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0.05f, 0.78f, 0.95f, 0.9f);
                 var row = UIKit.Rect(resultBook.right, "Icons").Region(0.06f, 0.42f, 0.94f, 0.74f);
                 UIKit.HorizontalList(row, 18, null, TextAnchor.MiddleCenter, false);
-                foreach (var p in m.problems.Where(p => p.mustObserve))
+                foreach (var p in m.problems)
                 {
                     var cell = UIKit.Panel(row, "Unknown", Theme.WithAlpha(Theme.NavySoft, 0.18f)).rectTransform;
-                    UIKit.Layout(cell, 150, 150);
+                    UIKit.Layout(cell, 130, 130);
                     FieldArt.UnknownPattern(cell, Theme.WithAlpha(Theme.Navy, 0.15f));
-                    UIKit.Text(cell, "Q", "?", 64, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Fill();
+                    UIKit.Text(cell, "Q", "?", 60, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Fill();
+                    if (!p.mustObserve) UIKit.Text(cell, "Extra", "추가", 22, Theme.TealDark, TextAlignmentOptions.Bottom, true).rectTransform.Fill(0, 0, 0, 6);
                 }
             }, () => sound.Play(Sfx.NotebookOpen));
             float wait = 0;
