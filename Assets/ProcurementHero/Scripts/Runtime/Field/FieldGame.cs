@@ -883,17 +883,19 @@ namespace ProcurementHero.Field
             title.fontSizeMax = 30;
 
             // AI 수첩 '내일'의 예측: 짧게 늘 보이게(예상 무늬 아이콘 + 한 줄). 현장 확인 정보는 수첩에 따로 쌓인다.
-            var chip = UIKit.Panel(hudRoot, "Forecast", Theme.WithAlpha(Theme.Navy, 0.82f)).rectTransform;
-            chip.Region(0.008f, 0.86f, 0.3f, 0.918f);
-            FieldArt.ForecastIcon(chip, 40).Place(new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(40, 40));
-            var fc = UIKit.Text(chip, "Text", $"<color=#{ColorUtility.ToHtmlStringRGB(Theme.Hex(0xF2C14E))}>예측</color> {Mission.forecast}", 20, Color.white, TextAlignmentOptions.MidlineLeft);
-            fc.rectTransform.Fill(58, 10, 2, 2);
+            // 예측 칩은 두 줄까지 쓰고 글자를 키운다(1366×768에서 약 16px). 같은 문장이 수첩 지도 위에도 있다.
+            var chip = UIKit.Panel(hudRoot, "Forecast", Theme.WithAlpha(Theme.Navy, 0.86f)).rectTransform;
+            chip.Region(0.008f, 0.825f, 0.3f, 0.918f);
+            FieldArt.ForecastIcon(chip, 44).Place(new Vector2(0, 0.5f), new Vector2(32, 0), new Vector2(44, 44));
+            var fc = UIKit.Text(chip, "Text", $"<color=#{ColorUtility.ToHtmlStringRGB(Theme.Hex(0xF2C14E))}>예측</color> {Mission.forecast}", 23, Color.white, TextAlignmentOptions.MidlineLeft);
+            fc.rectTransform.Fill(62, 12, 4, 4);
+            fc.lineSpacing = -6;
             fc.enableAutoSizing = true;
-            fc.fontSizeMin = 13;
-            fc.fontSizeMax = 20;
+            fc.fontSizeMin = 20;
+            fc.fontSizeMax = 23;
 
-            goalRow = UIKit.Rect(top, "Goals").Region(0.3f, 0.06f, 0.72f, 0.94f);
-            UIKit.HorizontalList(goalRow, 12, null, TextAnchor.MiddleCenter, false);
+            goalRow = UIKit.Rect(top, "Goals").Region(0.3f, 0.04f, 0.72f, 0.96f);
+            UIKit.HorizontalList(goalRow, 8, null, TextAnchor.MiddleCenter, false);
 
             var budget = UIKit.Rect(top, "Budget").Region(0.72f, 0.1f, 0.86f, 0.9f);
             UIKit.Shape(budget, "Coin", ShapeSprites.Circle, Theme.Hex(0xF2C14E), new Vector2(0, 0.5f), new Vector2(26, 0), new Vector2(40, 40));
@@ -964,20 +966,22 @@ namespace ProcurementHero.Field
             foreach (var p in Mission.problems)
             {
                 var cell = UIKit.Rect(goalRow, "Goal_" + p.id);
-                UIKit.Layout(cell, -1, 150);
+                UIKit.Layout(cell, -1, 190);
                 bool seen = observed.Contains(p.id);
                 bool solved = (State == FieldState.Review || State == FieldState.Result) && LastConfirmed != null && LastConfirmed.IsSolved(p.id);
-                FieldArt.ProblemIcon(cell, p.kind, 46).Place(new Vector2(0, 0.5f), new Vector2(26, 0), new Vector2(46, 46));
-                string label = (p.required ? "" : "추가 ") + p.displayName;
-                var text = UIKit.Text(cell, "Name", label, 20, seen ? Color.white : Theme.WithAlpha(Color.white, 0.6f), TextAlignmentOptions.MidlineLeft, true);
-                text.rectTransform.Fill(54, 0, 0, 0);
+                FieldArt.ProblemIcon(cell, p.kind, 42).Place(new Vector2(0, 0.5f), new Vector2(23, 0), new Vector2(42, 42));
+                // 문제 이름: 1366×768에서 약 15~16px. '추가 목표'는 작은 윗줄로 나눠 이름이 줄어들지 않게 한다.
+                string label = p.required ? p.displayName : $"<size=75%><color=#{ColorUtility.ToHtmlStringRGB(Theme.Hex(0xF2C14E))}>추가</color></size>\n{p.displayName}";
+                var text = UIKit.Text(cell, "Name", label, 22, seen ? Color.white : Theme.WithAlpha(Color.white, 0.75f), TextAlignmentOptions.MidlineLeft, true);
+                text.rectTransform.Fill(48, 0, 0, 0);
                 text.textWrappingMode = TextWrappingModes.NoWrap;
+                text.lineSpacing = -14;
                 text.enableAutoSizing = true;
-                text.fontSizeMin = 14;
-                text.fontSizeMax = 20;
-                if (solved) FieldArt.Tick(cell, 30, Theme.Success).Place(new Vector2(0, 0.5f), new Vector2(42, -14), new Vector2(30, 30));
+                text.fontSizeMin = 20;
+                text.fontSizeMax = 22;
+                if (solved) FieldArt.Tick(cell, 30, Theme.Success).Place(new Vector2(0, 0.5f), new Vector2(38, -14), new Vector2(30, 30));
                 else if (!seen && p.mustObserve)
-                    UIKit.Text(cell, "Unknown", "?", 28, Theme.Warning, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0, 0.5f), new Vector2(42, -14), new Vector2(30, 30));
+                    UIKit.Text(cell, "Unknown", "?", 28, Theme.Warning, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0, 0.5f), new Vector2(38, -14), new Vector2(30, 30));
             }
             int need = Mission.problems.Count(p => p.mustObserve);
             int done = Mission.problems.Count(p => p.mustObserve && observed.Contains(p.id));

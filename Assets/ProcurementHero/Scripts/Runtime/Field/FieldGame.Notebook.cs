@@ -198,7 +198,15 @@ namespace ProcurementHero.Field
             {
                 recommendButton = UIKit.Button(right, "AiHint", "AI 단서", OpenHint, ButtonStyle.Secondary, 24);
                 ((RectTransform)recommendButton.transform).Region(0.77f, 0.87f, 0.97f, 0.92f);
+                // 먼저 직접 골라 보도록 짧게만 안내한다(자동으로 열거나 적용하지 않음).
+                aiNote = UIKit.Text(right, "AiNote", "", 22, Theme.NavySoft, TextAlignmentOptions.MidlineRight);
+                aiNote.rectTransform.Region(0.4f, 0.87f, 0.755f, 0.92f);
+                aiNote.textWrappingMode = TextWrappingModes.NoWrap;
+                aiNote.enableAutoSizing = true;
+                aiNote.fontSizeMin = 20;
+                aiNote.fontSizeMax = 22;
             }
+            else aiNote = null;
 
             // 아래 띠: 전체 계획, 예산, 확정
             var band = bookParts.band;
@@ -242,6 +250,7 @@ namespace ProcurementHero.Field
             DrawBudgetAndConfirm(preview);
             ShowReach(null);
             if (recommendButton) recommendButton.interactable = !confirmLocked && FieldRules.MissingObservations(Spec, observed) == 0;
+            if (aiNote) aiNote.text = FieldRules.MissingObservations(Spec, observed) > 0 ? "관찰을 마치면 AI 단서를 볼 수 있어요" : "막히면 AI 단서를 확인해요 →";
 
             // 다시 그린 뒤에도 같은 항목에 키보드 선택을 되돌린다.
             if (keep != null)
@@ -746,6 +755,7 @@ namespace ProcurementHero.Field
     public partial class FieldGame
     {
         Button recommendButton;
+        TextMeshProUGUI aiNote;
         RectTransform recommendPanel;
         FieldPlan recommended;
 
