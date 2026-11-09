@@ -1235,9 +1235,20 @@ namespace ProcurementHero.Field
         /// 물에 잠긴 정도. 배수펌프는 상황이 온 뒤 고인 물을 빼고(대응), 모래주머니는 처음부터 물이 더 들어오지 않게 막는다
         /// (이미 있던 얕은 물을 말리지는 않는다).
         /// </summary>
+        /// <remarks>
+        /// 모래주머니로 해결한 곳: 강우가 늘어나는 동안에도 새 물이 넘어오지 않아 처음의 얕은 물 높이에서 더 오르지 않는다(깊은 물·막힘 없음).
+        /// 비가 그치고 시설 대응이 끝나면(respond 0→1) 막힌 안쪽 통로의 얕은 물은 스며 사라지고 젖은 바닥 자국만 남는다.
+        /// 펌프처럼 물을 빨아들이는 연출은 쓰지 않고 색만 옅어진다. 설치 직후·강우 중(respond 0)에는 아직 해결 모습을 미리 보이지 않는다.
+        /// </remarks>
         float Water(Site s) => s.level > 0 && s.solvedBy == FieldItemVisual.Sandbags
-            ? s.data.earlyLevel
+            ? s.data.earlyLevel * (1f - Response(s))
             : Intensity(s) * (1f - Response(s));
+
+        /// <summary>해당 침수 문제의 지금 물높이(0 마른 바닥 ~ 1 깊은 물, 검증용). 그림·충돌·물결이 모두 이 값을 따른다.</summary>
+        public float WaterLevel(string problemId) => sites.TryGetValue(problemId, out var s) && s.data.kind == FieldProblemKind.Flood ? Water(s) : -1f;
+
+        /// <summary>해당 침수 문제의 물결이 지금 보이는 정도(0~1, 검증용).</summary>
+        public float RippleShown(string problemId) => sites.TryGetValue(problemId, out var s) && s.waves.Count > 0 ? s.waves.Max(w => w.color.a) / 0.6f : 0f;
 
         /// <summary>센서 보행등이 해결한 어둠: 사람이 다가오면 밝게, 아니면 낮게 켜 둔다(보여 주기만, 판정과 무관).</summary>
         float Sensor(Site s)

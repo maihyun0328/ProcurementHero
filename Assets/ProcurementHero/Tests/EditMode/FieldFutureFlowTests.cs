@@ -432,6 +432,63 @@ namespace ProcurementHero.Tests
             }
         }
 
+        // ───────── 모래주머니로 지킨 보조 통로 ─────────
+
+        [Test]
+        public void SandbagProtectedPathDriesAfterResponseButIsNotSolvedEarly()
+        {
+            var m = M("f3");
+            var bProblem = m.Problem("B");
+            var cases = new Dictionary<string, (string, string)[]>
+            {
+                ["모래주머니(보조 통로 해결)"] = new[] { ("panel", "generator"), ("detour", "sandbags") },
+                ["보조 통로 미해결"] = new[] { ("panel", "generator") },
+                ["정문만 해결"] = new[] { ("panel", "generator"), ("door", "pump") },
+                ["정문+보조 통로"] = new[] { ("panel", "generator"), ("door", "pump"), ("detour", "sandbags") }
+            };
+            foreach (var pair in cases)
+            {
+                var e = Eval(m, pair.Value);
+                bool bSolved = e.IsSolved("B"), rSolved = e.IsSolved("R");
+                Assert.AreEqual(pair.Value.Any(v => v.Item2 == "sandbags"), bSolved, pair.Key + " 판정: 모래주머니가 보조 통로를 해결");
+                WithWorld(m, world =>
+                {
+                    // 계획 단계(설치 전): 해결 모습을 미리 보이지 않는다.
+                    world.ApplyInstant(null);
+                    Assert.AreEqual(bProblem.earlyLevel, world.WaterLevel("B"), 1e-4, pair.Key + " 계획 단계");
+                    // 설치 직후·강우 최고조(대응 전): 해결돼도 아직 얕은 물 그대로(더 오르지 않음), 미해결이면 깊은 물.
+                    world.ApplyPrepared(e);
+                    Assert.AreEqual(bProblem.earlyLevel, world.WaterLevel("B"), 1e-4, pair.Key + " 설치 직후");
+                    world.ApplyStage(e, 1f, 0f);
+                    Assert.AreEqual(bSolved ? bProblem.earlyLevel : 1f, world.WaterLevel("B"), 1e-4, pair.Key + " 강우 중");
+                    Assert.AreEqual(!bSolved, world.PuddleBlocking("B"), pair.Key + " 강우 중 충돌");
+                    // 대응 완료(정상 재생 끝·건너뛰기·이어하기·엔딩이 같은 ApplyInstant): 해결이면 마른 통로, 미해결이면 깊은 물.
+                    world.ApplyInstant(e);
+                    if (bSolved)
+                    {
+                        Assert.Less(world.WaterLevel("B"), 0.02f, pair.Key + " 고인 물 없음");
+                        Assert.AreEqual(0f, world.RippleShown("B"), 1e-3, pair.Key + " 물결 없음");
+                        Assert.AreEqual(0f, world.DeepShown("B"), pair.Key + " 깊은 물·표지 없음");
+                        Assert.IsFalse(world.PuddleBlocking("B"), pair.Key + " 통행 가능");
+                    }
+                    else
+                    {
+                        Assert.AreEqual(1f, world.WaterLevel("B"), 1e-4, pair.Key);
+                        Assert.Greater(world.RippleShown("B"), 0.5f, pair.Key + " 물결");
+                        Assert.Greater(world.DeepShown("B"), 0.99f, pair.Key + " 깊은 물·표지");
+                        Assert.IsTrue(world.PuddleBlocking("B"), pair.Key + " 막힘");
+                    }
+                    // 다른 침수 구역(정문)은 정문 판정만 따른다.
+                    Assert.AreEqual(!rSolved, world.PuddleBlocking("R"), pair.Key + " 정문은 그대로");
+                    Assert.AreEqual(rSolved ? 0f : 1f, world.WaterLevel("R"), 1e-4, pair.Key + " 정문 물높이");
+                    // 재계획(상황 전)으로 돌아가면 다시 처음의 얕은 물.
+                    world.ApplyInstant(null);
+                    Assert.AreEqual(bProblem.earlyLevel, world.WaterLevel("B"), 1e-4, pair.Key + " 재계획");
+                    return 0;
+                });
+            }
+        }
+
         // ───────── 깊은 물: 그림과 통행 범위가 같다 ─────────
 
         [Test]
