@@ -31,6 +31,9 @@ namespace ProcurementHero
         AudioSource sfxSource;
         AudioSource bgmSource;
         AudioClip[] clips;
+        /// <summary>배경음 시작 페이드(0→1). 앱 시작 순간 무음에서 바로 일정 음량으로 켜지지 않게 1.5초 동안 올린다.</summary>
+        float bgmFade;
+        const float BgmFadeSeconds = 1.5f;
 
         public void Init()
         {
@@ -74,7 +77,15 @@ namespace ProcurementHero
         {
             bool muted = SaveService.Muted;
             if (sfxSource) sfxSource.volume = muted ? 0f : SaveService.SfxVolume;
-            if (bgmSource) bgmSource.volume = muted ? 0f : SaveService.BgmVolume * 0.35f;
+            if (bgmSource) bgmSource.volume = muted ? 0f : SaveService.BgmVolume * 0.35f * bgmFade;
+        }
+
+        void Update()
+        {
+            if (bgmFade >= 1f || !bgmSource) return;
+            // 시작 직후 긴 프레임(에디터 첫 프레임 등)에 한 번에 다 오르지 않게 한 프레임에 0.1초까지만 센다.
+            bgmFade = Mathf.Min(1f, bgmFade + Mathf.Min(Time.unscaledDeltaTime, 0.1f) / BgmFadeSeconds);
+            ApplySettings();
         }
 
         public void Play(Sfx sfx)

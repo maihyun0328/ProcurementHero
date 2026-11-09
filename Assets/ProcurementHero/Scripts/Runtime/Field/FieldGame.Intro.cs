@@ -16,6 +16,9 @@ namespace ProcurementHero.Field
     {
         public const float IntroSeconds = 4.8f;
         const float IntroRevealEnd = 0.9f, IntroAlertEnd = 1.9f, IntroOpenEnd = 3.0f;
+        // 실제 속도 녹화에서 커지는 수첩과 타이틀 카드가 같은 투명도로 겹쳐 글자가 이중으로 보였다.
+        // 그래서 수첩이 먼저 빠지고(3.3~4.1초) 그 뒤 타이틀 카드가 나타나게(3.9~4.8초) 나눈다. 알림은 3.5~3.9초에 사라진다.
+        const float IntroBookFadeStart = 3.3f, IntroBookFadeLength = 0.8f, IntroTitleFadeStart = 3.9f, IntroAlertFadeStart = 3.5f;
 
         /// <summary>이번 실행에서 시작 연출을 이미 보여 줬는지. 타이틀 복귀·새 게임·재계획에서는 다시 재생하지 않는다.</summary>
         static bool introPlayed;
@@ -98,7 +101,11 @@ namespace ProcurementHero.Field
             ((RectTransform)skip.transform).Region(0.84f, 0.92f, 0.98f, 0.98f);
             Deselectable(skip);
 
-            bool alerted = false, titleBuilt = false;
+            // 타이틀 화면(마을 지도·메뉴)은 처음에 어두운 화면 뒤에 숨겨 만들어 둔다. 중간(3초)에 만들면 한 프레임이 길어져
+            // 펼친 수첩이 잠깐 멈춰 보였다(실제 속도 기록에서 약 55ms).
+            BuildTitleScreen(false);
+            titleGroup.alpha = 0f;
+            bool alerted = false;
             while (token == screenToken && IntroTime < IntroSeconds)
             {
                 IntroTime += IntroDelta;
@@ -117,7 +124,7 @@ namespace ProcurementHero.Field
                     sound.Play(Sfx.Check);
                 }
                 float a = Mathf.Clamp01((t - IntroRevealEnd) / 0.35f);
-                alertGroup.alpha = t < IntroOpenEnd + 0.6f ? a : Mathf.Clamp01(1f - (t - IntroOpenEnd - 0.6f) / 0.4f);
+                alertGroup.alpha = t < IntroAlertFadeStart ? a : Mathf.Clamp01(1f - (t - IntroAlertFadeStart) / 0.4f);
                 icon.localScale = Vector3.one * (a < 1f ? Mathf.Lerp(0.6f, 1.1f, a) : 1f + Mathf.Sin(t * 5f) * 0.03f);
 
                 // ③ 수첩 표지가 넘어가며 새봄시 지도와 예상 위험 표시가 나타난다.
@@ -127,25 +134,18 @@ namespace ProcurementHero.Field
                 book.Spread = Mathf.Clamp01(open * 2f - 0.6f);
                 book.book.anchoredPosition = new Vector2(Mathf.Lerp(-halfWidth, 0f, Mathf.SmoothStep(0, 1, open)), 0);
 
-                // ④ 지도가 커지며 흐려지고, 그 아래에서 타이틀 화면(같은 마을 지도)이 드러난다.
-                if (t >= IntroOpenEnd && !titleBuilt)
+                // ④ 지도가 커지며 흐려지고, 그 아래에서 타이틀 배경(같은 마을 지도)이 드러난다.
+                float e = Mathf.SmoothStep(0, 1, Mathf.Clamp01((t - IntroBookFadeStart) / IntroBookFadeLength));
+                if (t >= IntroBookFadeStart)
                 {
-                    titleBuilt = true;
-                    BuildTitleScreen(false);
-                    titleGroup.alpha = 0f;
-                }
-                float fade = Mathf.Clamp01((t - IntroOpenEnd - 0.4f) / (IntroSeconds - IntroOpenEnd - 0.4f));
-                if (titleBuilt)
-                {
-                    float e = Mathf.SmoothStep(0, 1, fade);
-                    book.book.localScale = Vector3.one * Mathf.Lerp(1f, 1.6f, e);
+                    book.book.localScale = Vector3.one * Mathf.Lerp(1f, 1.4f, e);
                     book.group.alpha = 1f - e;
                     darkImage.color = Theme.WithAlpha(Theme.Hex(0x0B1026), 1f - e);
                     sceneGroup.alpha = edgeGroup.alpha = 1f - e;
                     light.color = Theme.WithAlpha(Theme.Hex(0xFFE7A8), 0.09f * (1f - e));
-                    // ⑤ 로고·제목·메뉴가 나타난다(끝날 때까지 누를 수 없음).
-                    titleGroup.alpha = e;
                 }
+                // ⑤ 수첩이 거의 빠진 뒤 로고·제목·메뉴가 나타난다(끝날 때까지 누를 수 없음).
+                titleGroup.alpha = Mathf.SmoothStep(0, 1, Mathf.Clamp01((t - IntroTitleFadeStart) / (IntroSeconds - IntroTitleFadeStart)));
                 yield return null;
             }
             if (token != screenToken) yield break;
