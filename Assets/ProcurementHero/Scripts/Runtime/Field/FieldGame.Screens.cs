@@ -275,11 +275,13 @@ namespace ProcurementHero.Field
             yield return Wait(0.25f);
             if (token != screenToken) yield break;
 
-            // 계획 페이지 → 결과 기록 페이지
+            // 계획 페이지 → 결과 기록 페이지. 두 쪽 새 내용은 넘기기 시작 전에 한 번만 만든다(넘어가는 장 앞면에는 이전 내용).
             resultBook.group.interactable = false;
-            BuildResultRight(resultBook.right, r, newBest);
-            sound.Play(Sfx.NotebookOpen);
-            yield return FieldBook.TurnPage(resultBook, () => BuildResultLeft(resultBook.left, r));
+            yield return FieldBook.TurnPage(resultBook, () =>
+            {
+                BuildResultLeft(resultBook.left, r);
+                BuildResultRight(resultBook.right, r, newBest);
+            }, () => sound.Play(Sfx.NotebookOpen));
             if (token != screenToken) yield break;
             sound.Play(Sfx.Stamp);
             yield return FieldBook.Stamp(resultBook, resultBook.right, new Vector2(0.78f, 0.8f), r.Success ? "해결" : "재도전", r.Success ? Theme.Success : Theme.Danger, 170f);
@@ -301,7 +303,7 @@ namespace ProcurementHero.Field
             for (int i = page.childCount - 1; i >= 0; i--)
             {
                 var c = page.GetChild(i);
-                if (c.name == "Rule" || c.name == "Gutter") continue;
+                if (FieldBook.IsDecoration(c)) continue;
                 c.gameObject.SetActive(false);
                 Destroy(c.gameObject);
             }
@@ -426,7 +428,6 @@ namespace ProcurementHero.Field
             resultBook.group.interactable = false;
             if (EventSystem.current) EventSystem.current.SetSelectedGameObject(null);
             var m = database.missions[next];
-            sound.Play(Sfx.NotebookOpen);
             yield return FieldBook.TurnPage(resultBook, () =>
             {
                 ClearPage(resultBook.left);
@@ -444,7 +445,7 @@ namespace ProcurementHero.Field
                     FieldArt.UnknownPattern(cell, Theme.WithAlpha(Theme.Navy, 0.15f));
                     UIKit.Text(cell, "Q", "?", 64, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Fill();
                 }
-            });
+            }, () => sound.Play(Sfx.NotebookOpen));
             float wait = 0;
             var kb = UnityEngine.InputSystem.Keyboard.current;
             while (wait < 1.1f && token == screenToken)

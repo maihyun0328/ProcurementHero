@@ -129,9 +129,8 @@ namespace ProcurementHero.Field
 
                 // ③ 수첩 표지가 넘어가며 새봄시 지도와 예상 위험 표시가 나타난다.
                 float open = Mathf.Clamp01((t - IntroAlertEnd) / (IntroOpenEnd - IntroAlertEnd));
-                book.cover.localScale = new Vector3(Mathf.Clamp01(1f - open * 2f), 1, 1);
-                book.coverInside.localScale = new Vector3(open < 0.5f ? open * 2f : Mathf.Clamp01(2f - open * 2f), 1, 1);
-                book.Spread = Mathf.Clamp01(open * 2f - 0.6f);
+                // 표지가 책등을 축으로 넘어가고(같은 FieldBook 표지 동작), 왼쪽 지도 페이지가 표지 뒷면에 붙어 함께 넘어온다.
+                FieldBook.SetCover(book, FieldBook.EaseInOutSine(open));
                 book.book.anchoredPosition = new Vector2(Mathf.Lerp(-halfWidth, 0f, Mathf.SmoothStep(0, 1, open)), 0);
 
                 // ④ 지도가 커지며 흐려지고, 그 아래에서 타이틀 배경(같은 마을 지도)이 드러난다.
