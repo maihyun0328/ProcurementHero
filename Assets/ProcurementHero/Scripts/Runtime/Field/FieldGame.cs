@@ -175,6 +175,7 @@ namespace ProcurementHero.Field
             {
                 inputLockFrame = Time.frameCount;
                 if (modalStack.Count > 0) CloseTopModal();
+                else if (State == FieldState.Notebook && detailPanel) CloseObservedDetail();
                 else if (State == FieldState.Notebook && recommendPanel) CloseRecommend();
                 else if (State == FieldState.Notebook) CloseNotebook();
                 else if (State == FieldState.Explore || State == FieldState.Installing || State == FieldState.Scenario || State == FieldState.Review || State == FieldState.Arriving) OpenPause();
@@ -582,6 +583,7 @@ namespace ProcurementHero.Field
             titleGroup = null;
             titleFirst = null;
             recommendPanel = null;
+            detailPanel = null;
             if (world) Destroy(world.gameObject);
             world = null;
             SetState(next);
@@ -722,6 +724,8 @@ namespace ProcurementHero.Field
             if (FieldRules.CanConfirm(Spec, Plan, observed) != ConfirmBlock.None) return false;
             confirmLocked = true;
             notebookBusy = true;
+            if (detailPanel) Destroy(detailPanel.gameObject);
+            detailPanel = null;
             var snapshot = FieldRules.Evaluate(Spec, Plan);
             LastConfirmed = snapshot;
             if (Retrying)
@@ -931,7 +935,7 @@ namespace ProcurementHero.Field
             magButton.onClick.AddListener(TryObserve);
             Deselectable(magButton);
             FieldArt.Magnifier(magnifier, 64).Place(new Vector2(0.5f, 1f), new Vector2(0, -38), new Vector2(64, 64));
-            UIKit.Text(magnifier, "Key", "E 살펴보기", 20, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0, 0, 1, 0.34f);
+            UIKit.Text(magnifier, "Key", "E 살펴보기", 23, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Region(0, 0, 1, 0.34f);
             magnifier.gameObject.SetActive(false);
 
             bubble = UIKit.Panel(hudRoot, "Bubble", Theme.Paper).rectTransform;

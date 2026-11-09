@@ -20,6 +20,8 @@ namespace ProcurementHero.Field
         static readonly Color PageColor = Theme.Hex(0xFFF9EC);
         static readonly Color CoverColor = Theme.Hex(0x7A4E2D);
         static readonly Color InkFaint = Theme.WithAlpha(Theme.Navy, 0.12f);
+        /// <summary>페이지 좌표에서 아래 띠(계획·예산·승인) 윗변. 페이지 내용은 이 위에만 둔다.</summary>
+        const float BandTop = 0.195f;
 
         public bool NotebookOpen => State == FieldState.Notebook;
         /// <summary>수첩을 펴거나 닫거나 도장을 찍는 중이면 true. 이때 Tab·Esc·확정은 무시한다.</summary>
@@ -106,6 +108,7 @@ namespace ProcurementHero.Field
         {
             if (notebookRoot) Destroy(notebookRoot.gameObject);
             notebookRoot = null;
+            detailPanel = null;
             bookParts = null;
             if (EventSystem.current) EventSystem.current.SetSelectedGameObject(null);
         }
@@ -135,17 +138,20 @@ namespace ProcurementHero.Field
 
             // 왼쪽 페이지: 현장 지도와 관찰 기록
             // 지도는 현장을 옮긴 디지털 트윈이라는 설정: 물품을 고르면 예상 영향 구역을 가상으로 비춰 본다(새 시뮬레이션은 없다).
+            // 글자 크기 기준: 기준 해상도 1920×1080 단위. 1366×768에서는 약 0.71배로 보이므로 핵심 문구는 23 이상(약 16px), 보조 문구도 21 이상.
             var lt = UIKit.Text(left, "Title", $"디지털 트윈 지도 · {Mission.placeName}", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true);
-            lt.rectTransform.Region(0.05f, 0.92f, 0.95f, 0.985f);
+            lt.rectTransform.Region(0.05f, 0.925f, 0.95f, 0.99f);
             lt.enableAutoSizing = true;
-            lt.fontSizeMin = 20;
+            lt.fontSizeMin = 24;
             lt.fontSizeMax = 30;
-            var fc = UIKit.Text(left, "Forecast", $"<color=#{ColorUtility.ToHtmlStringRGB(Theme.Danger)}>예측</color> {Mission.forecast}  ·  {Mission.eventTime}까지 준비", 19, Theme.NavySoft, TextAlignmentOptions.MidlineLeft);
-            fc.rectTransform.Region(0.05f, 0.88f, 0.95f, 0.92f);
+            var fc = UIKit.Text(left, "Forecast", $"<color=#{ColorUtility.ToHtmlStringRGB(Theme.Danger)}>예측</color> {Mission.forecast}", 23, Theme.Navy, TextAlignmentOptions.MidlineLeft);
+            fc.rectTransform.Region(0.05f, 0.875f, 0.95f, 0.925f);
+            fc.textWrappingMode = TextWrappingModes.NoWrap;
+            fc.overflowMode = TextOverflowModes.Ellipsis;
             fc.enableAutoSizing = true;
-            fc.fontSizeMin = 13;
-            fc.fontSizeMax = 19;
-            var mapHolder = UIKit.Rect(left, "MapHolder").Region(0.04f, 0.4f, 0.96f, 0.875f);
+            fc.fontSizeMin = 21;
+            fc.fontSizeMax = 23;
+            var mapHolder = UIKit.Rect(left, "MapHolder").Region(0.04f, 0.485f, 0.96f, 0.87f);
             var map = UIKit.Panel(mapHolder, "Map", Theme.Hex(0xEDE3CC)).rectTransform;
             map.anchorMin = map.anchorMax = new Vector2(0.5f, 0.5f);
             var fitter = map.gameObject.AddComponent<AspectRatioFitter>();
@@ -160,32 +166,38 @@ namespace ProcurementHero.Field
                 tape.localRotation = Quaternion.Euler(0, 0, corner.x > 0 ? -30 : 30);
             }
 
-            // 지도 범례: 무늬·기호·짧은 글로 '예상'과 '현장 확인'을 구분한다.
-            var legend = UIKit.Text(left, "Legend",
-                "<b>빗금·?</b> AI 예상(확인 전)   <b>단색</b> 현장 확인   <b>청록 테두리</b> 고른 물품의 예상 영향   <b>✓</b> 대비 예상",
-                17, Theme.NavySoft, TextAlignmentOptions.MidlineLeft);
-            legend.rectTransform.Region(0.05f, 0.36f, 0.95f, 0.4f);
+            // 지도 범례: 기호와 짧은 말만(긴 설명은 도움말). 확인 전 구역은 지도 안에 '확인 전'으로 따로 적힌다.
+            var legend = UIKit.Text(left, "Legend", "<b>✓</b> 대비 예상   <b>?</b> 확인 전   <b>청록 테두리</b> 고른 물품이 닿는 곳",
+                22, Theme.NavySoft, TextAlignmentOptions.MidlineLeft);
+            legend.rectTransform.Region(0.05f, 0.44f, 0.95f, 0.485f);
+            legend.textWrappingMode = TextWrappingModes.NoWrap;
             legend.enableAutoSizing = true;
-            legend.fontSizeMin = 12;
-            legend.fontSizeMax = 17;
-            var obsTitle = UIKit.Text(left, "ObservedTitle", "현장 확인 기록", 24, Theme.NavySoft, TextAlignmentOptions.MidlineLeft, true);
-            obsTitle.rectTransform.Region(0.05f, 0.315f, 0.6f, 0.36f);
-            observedRow = UIKit.Rect(left, "Observed").Region(0.04f, 0.2f, 0.96f, 0.31f);
-            UIKit.HorizontalList(observedRow, 10, null, TextAnchor.MiddleLeft, false);
+            legend.fontSizeMin = 20;
+            legend.fontSizeMax = 22;
+            var obsTitle = UIKit.Text(left, "ObservedTitle", "현장 확인 기록 <size=21><color=#55607E>· 카드를 고르면 자세히</color></size>", 24, Theme.Navy, TextAlignmentOptions.MidlineLeft, true);
+            obsTitle.rectTransform.Region(0.05f, 0.39f, 0.95f, 0.44f);
+            // 관찰 카드 영역은 아래 띠(계획·예산) 바로 위까지. 카드는 두 줄 격자로 놓는다.
+            observedRow = UIKit.Rect(left, "Observed").Region(0.04f, BandTop + 0.005f, 0.96f, 0.385f);
 
             // 오른쪽 페이지: 고른 자리에 놓을 물품
-            rightHeader = UIKit.Rect(right, "Header").Region(0.05f, 0.84f, 0.8f, 0.98f);
-            itemList = UIKit.Rect(right, "Items").Region(0.05f, 0.22f, 0.95f, 0.83f);
-            UIKit.VerticalList(itemList, 12).childForceExpandHeight = false;
+            rightHeader = UIKit.Rect(right, "Header").Region(0.05f, 0.865f, 0.76f, 0.99f);
+            var tip = UIKit.Text(right, "Tip", "체크하면 이 자리에 놓기 · 다시 누르면 취소 · 다른 물품은 교체", 22, Theme.NavySoft, TextAlignmentOptions.MidlineLeft);
+            tip.rectTransform.Region(0.05f, 0.825f, 0.97f, 0.865f);
+            tip.textWrappingMode = TextWrappingModes.NoWrap;
+            tip.enableAutoSizing = true;
+            tip.fontSizeMin = 20;
+            tip.fontSizeMax = 22;
+            itemList = UIKit.Rect(right, "Items").Region(0.05f, BandTop, 0.95f, 0.82f);
+            UIKit.VerticalList(itemList, 8).childForceExpandHeight = false;
 
-            closeButton = UIKit.Button(right, "Close", "닫기 (Tab)", CloseNotebook, ButtonStyle.Secondary, 22);
-            ((RectTransform)closeButton.transform).Region(0.79f, 0.895f, 0.97f, 0.97f);
+            closeButton = UIKit.Button(right, "Close", "닫기 (Tab)", CloseNotebook, ButtonStyle.Secondary, 24);
+            ((RectTransform)closeButton.transform).Region(0.77f, 0.925f, 0.97f, 0.99f);
             // 보조 기능: 2·3 현장에서 필수 관찰을 마치면 'AI 단서'(한 가지 단서) → 원하면 '배치안까지 보기'(전체 추천안).
             recommendButton = null;
             if (MissionIndex > 0)
             {
-                recommendButton = UIKit.Button(right, "AiHint", "AI 단서", OpenHint, ButtonStyle.Secondary, 20);
-                ((RectTransform)recommendButton.transform).Region(0.79f, 0.84f, 0.97f, 0.89f);
+                recommendButton = UIKit.Button(right, "AiHint", "AI 단서", OpenHint, ButtonStyle.Secondary, 24);
+                ((RectTransform)recommendButton.transform).Region(0.77f, 0.87f, 0.97f, 0.92f);
             }
 
             // 아래 띠: 전체 계획, 예산, 확정
@@ -286,7 +298,7 @@ namespace ProcurementHero.Field
                     // 아직 조사하지 않은 곳: 사선 무늬 + 물음표 + '조사 전'. 문제 종류와 해결 예상은 숨긴다.
                     FieldArt.UnknownPattern(zone, Theme.WithAlpha(Theme.Navy, 0.18f));
                     UIKit.Text(zone, "Unknown", "?", 34, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, 8), new Vector2(40, 40));
-                    UIKit.Text(zone, "Name", "AI 예상 · 확인 전", 16, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -22), new Vector2(170, 22));
+                    UIKit.Text(zone, "Name", "확인 전", 20, Theme.Navy, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -24), new Vector2(120, 26));
                     continue;
                 }
                 var reach = UIKit.Panel(zone, "Reach", Theme.WithAlpha(Theme.Teal, 0.12f)).rectTransform;
@@ -299,12 +311,19 @@ namespace ProcurementHero.Field
                 reach.gameObject.SetActive(false);
                 zoneReach[p.id] = reach.gameObject;
                 FieldArt.ProblemIcon(zone, p.kind, 40).Place(new Vector2(0.5f, 0.5f), new Vector2(0, 10), new Vector2(40, 40));
-                var name = UIKit.Text(zone, "Name", (p.required ? "" : "추가 · ") + p.displayName, 17, lit ? Theme.Navy : Color.white, TextAlignmentOptions.Center, true);
-                // 이름은 구역 위쪽에 둔다(구역 안의 설치 자리 이름과 겹치지 않게).
-                name.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -14), new Vector2(160, 24));
+                // 이름표는 어느 바탕에서도 읽히게 진한 글자 + 종이색 테두리. 구역 위쪽에 두고, 설치 자리 원·이름과 겹치면
+                // 아래쪽 안 → 가운데 그림 위 → 옆으로 비킨 자리 순으로 옮긴다.
+                var name = UIKit.Text(zone, "Name", (p.required ? "" : "추가 · ") + p.displayName, 20, Theme.Navy, TextAlignmentOptions.Center, true);
+                var (anchorY, dy, dx) = ZoneLabelSlots[ZoneLabelSlot(p)];
+                name.rectTransform.Place(new Vector2(0.5f, anchorY), new Vector2(dx, dy), new Vector2(190, 26));
+                name.outlineColor = Theme.WithAlpha(PageColor, 0.95f);
+                name.outlineWidth = 0.22f;
+                name.textWrappingMode = TextWrappingModes.NoWrap;
                 // 해결 예상은 색만이 아니라 표시 모양으로도 구분한다: 체크 = 밝아짐/해결, 점 세 개 = 그대로.
-                if (lit) FieldArt.Tick(zone, 26, Theme.Success).Place(new Vector2(1, 1), new Vector2(-16, -16), new Vector2(26, 26));
-                else UIKit.Text(zone, "Still", "…", 22, Color.white, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(1, 1), new Vector2(-18, -14), new Vector2(30, 24));
+                // 표시는 이름표와 반대쪽 모서리(이름표가 위면 오른쪽 아래)에 둔다.
+                bool markBottom = anchorY > 0.75f;
+                if (lit) FieldArt.Tick(zone, 26, Theme.Success).Place(new Vector2(1, markBottom ? 0 : 1), new Vector2(-16, markBottom ? 16 : -16), new Vector2(26, 26));
+                else UIKit.Text(zone, "Still", "…", 22, Color.white, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(1, markBottom ? 0 : 1), new Vector2(-18, markBottom ? 14 : -14), new Vector2(30, 24));
             }
 
             // 설치 지점 버튼
@@ -327,11 +346,44 @@ namespace ProcurementHero.Field
                     FieldArt.ItemIcon(rt, Mission.Item(item).visual, selected ? 52 : 44).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(44, 44));
                 else
                     UIKit.Shape(rt, "Empty", ShapeSprites.Circle, selected ? Theme.Paper : Theme.WithAlpha(Theme.Teal, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(18, 18)).raycastTarget = false;
-                var label = UIKit.Text(rt, "Name", s.displayName, 17, Theme.Navy, TextAlignmentOptions.Center, true);
-                label.rectTransform.Place(new Vector2(0.5f, 0f), new Vector2(0, -16), new Vector2(150, 24));
+                var label = UIKit.Text(rt, "Name", s.displayName, 20, Theme.Navy, TextAlignmentOptions.Center, true);
+                label.rectTransform.Place(new Vector2(0.5f, 0f), new Vector2(0, -17), new Vector2(190, 26));
+                label.textWrappingMode = TextWrappingModes.NoWrap;
                 var bg = label.gameObject.AddComponent<Outline>();
                 bg.effectColor = Theme.WithAlpha(PageColor, 0.9f);
             }
+        }
+
+        /// <summary>지도 1칸(월드 1)의 대략적인 화면 크기(기준 해상도 단위). 이름표 겹침을 미리 피하는 데만 쓴다.</summary>
+        const float MapUnitPx = 22f;
+
+        /// <summary>구역 이름표 후보 자리: (세로 기준 0 아래·0.5 가운데·1 위, 세로 여백 px, 가로 이동 px).</summary>
+        static readonly (float anchorY, float dy, float dx)[] ZoneLabelSlots =
+        {
+            (1f, -15f, 0f), (0f, 15f, 0f), (0.5f, 46f, 0f), (1f, -15f, -80f), (1f, -15f, 80f), (0f, 15f, -80f), (0f, 15f, 80f)
+        };
+
+        /// <summary>설치 자리 원·이름표와 겹치지 않는 첫 이름표 자리(글자 수로 너비를 어림한다). 모두 겹치면 첫 자리.</summary>
+        int ZoneLabelSlot(FieldProblemEntry p)
+        {
+            string label = (p.required ? "" : "추가 · ") + p.displayName;
+            float halfW = (label.Length * 20f + 10f) / 2f / MapUnitPx, halfH = 13f / MapUnitPx;
+            for (int slot = 0; slot < ZoneLabelSlots.Length; slot++)
+            {
+                var (anchorY, dy, dx) = ZoneLabelSlots[slot];
+                float y = p.zoneCenter.y + (anchorY - 0.5f) * p.zoneSize.y + dy / MapUnitPx;
+                float x = p.zoneCenter.x + dx / MapUnitPx;
+                bool hit = false;
+                foreach (var s in Mission.spots)
+                {
+                    float labelY = s.position.y - 45f / MapUnitPx, sHalfW = (s.displayName.Length * 20f + 10f) / 2f / MapUnitPx;
+                    bool hitsLabel = Mathf.Abs(s.position.x - x) < halfW + sHalfW && Mathf.Abs(labelY - y) < halfH * 2;
+                    bool hitsCircle = Mathf.Abs(s.position.x - x) < halfW + 30f / MapUnitPx && Mathf.Abs(s.position.y - y) < halfH + 30f / MapUnitPx;
+                    if (hitsLabel || hitsCircle) { hit = true; break; }
+                }
+                if (!hit) return slot;
+            }
+            return 0;
         }
 
         void SelectSpot(string spotId)
@@ -343,30 +395,98 @@ namespace ProcurementHero.Field
             RefreshNotebook();
         }
 
+        /// <summary>
+        /// 관찰 기록 카드: 이름과 핵심 단서 한 줄만(두 줄 격자). 관찰한 카드는 눌러(또는 Enter) 자세히 패널을 연다.
+        /// 아직 관찰하지 않은 곳은 '아직 못 봄'만 보이고 고를 수 없다(관찰 전 정보는 자세히에서도 숨김).
+        /// </summary>
         void DrawObserved()
         {
             UIKit.Clear(observedRow);
-            foreach (var p in Mission.problems.Where(p => p.mustObserve || observed.Contains(p.id)))
+            var list = Mission.problems.Where(p => p.mustObserve || observed.Contains(p.id)).ToList();
+            int columns = 2, rows = Mathf.Max(1, Mathf.CeilToInt(list.Count / (float)columns));
+            for (int i = 0; i < list.Count; i++)
             {
-                bool seen = observed.Contains(p.id);
-                var card = UIKit.Panel(observedRow, "Obs_" + p.id, seen ? Theme.Paper : InkFaint);
-                UIKit.Layout(card, 90, 150);
-                if (seen) FieldArt.ProblemIcon(card.transform, p.kind, 46).Place(new Vector2(0.5f, 1f), new Vector2(0, -30), new Vector2(46, 46));
-                else FieldArt.Magnifier(card.transform, 40).Place(new Vector2(0.5f, 1f), new Vector2(0, -28), new Vector2(40, 40));
-                var t = UIKit.Text(card.transform, "Name", seen ? p.displayName : "아직 못 봄", 18, seen ? Theme.Navy : Theme.NavySoft, TextAlignmentOptions.Center, seen);
-                t.rectTransform.Region(0, 0, 1, 0.36f);
-                if (seen && !string.IsNullOrEmpty(p.memo))
+                var p = list[i];
+                string id = p.id;
+                bool seen = observed.Contains(id);
+                int col = i % columns, row = i / columns;
+                var card = UIKit.Button(observedRow, "Obs_" + id, "", () => OpenObservedDetail(id), ButtonStyle.Secondary);
+                Destroy(card.transform.Find("Label").gameObject);
+                ((Image)card.targetGraphic).color = seen ? Theme.Paper : InkFaint;
+                card.interactable = seen;
+                var rt = (RectTransform)card.transform;
+                rt.Region(col / (float)columns, 1f - (row + 1f) / rows, (col + 1f) / columns, 1f - row / (float)rows);
+                rt.offsetMin += new Vector2(col == 0 ? 0 : 6, 6);
+                rt.offsetMax -= new Vector2(col == columns - 1 ? 0 : 6, 0);
+                if (seen) FieldArt.ProblemIcon(rt, p.kind, 50).Place(new Vector2(0, 0.5f), new Vector2(38, 0), new Vector2(50, 50));
+                else FieldArt.Magnifier(rt, 44).Place(new Vector2(0, 0.5f), new Vector2(38, 0), new Vector2(44, 44));
+                var name = UIKit.Text(rt, "Name", seen ? (p.required ? "" : "추가 · ") + p.displayName : "아직 못 봄", 24, seen ? Theme.Navy : Theme.NavySoft,
+                    TextAlignmentOptions.BottomLeft, true);
+                name.rectTransform.Region(0, 0.5f, 1, 1).offsetMin = new Vector2(74, 0);
+                name.rectTransform.offsetMax = new Vector2(-40, -4);
+                name.textWrappingMode = TextWrappingModes.NoWrap;
+                name.overflowMode = TextOverflowModes.Ellipsis;
+                if (seen)
                 {
-                    // 관찰한 곳은 한 줄 메모를 남긴다.
-                    UIKit.Layout(card, 150, 230);
-                    t.text = $"<b>{p.displayName}</b>\n<size=15><color=#{ColorUtility.ToHtmlStringRGB(Theme.NavySoft)}>{p.memo}</color></size>";
-                    t.rectTransform.Region(0, 0, 1, 0.48f);
-                    t.enableAutoSizing = true;
-                    t.fontSizeMin = 12;
-                    t.fontSizeMax = 18;
+                    var clue = UIKit.Text(rt, "Clue", string.IsNullOrEmpty(p.clue) ? p.memo : p.clue, 22, Theme.NavySoft, TextAlignmentOptions.TopLeft);
+                    clue.rectTransform.Region(0, 0, 1, 0.5f).offsetMin = new Vector2(74, 4);
+                    clue.rectTransform.offsetMax = new Vector2(-40, 0);
+                    clue.textWrappingMode = TextWrappingModes.NoWrap;
+                    clue.overflowMode = TextOverflowModes.Ellipsis;
+                    FieldArt.Tick(rt, 24, Theme.Success).Place(new Vector2(1, 1), new Vector2(-18, -18), new Vector2(24, 24));
+                    UIKit.Text(rt, "More", "›", 34, Theme.TealDark, TextAlignmentOptions.Center, true).rectTransform.Place(new Vector2(1, 0.5f), new Vector2(-20, -8), new Vector2(30, 40));
                 }
-                if (seen) FieldArt.Tick(card.transform, 24, Theme.Success).Place(new Vector2(1, 1), new Vector2(-14, -14), new Vector2(24, 24));
             }
+        }
+
+        RectTransform detailPanel;
+        string detailProblem;
+
+        /// <summary>자세히 패널이 열려 있는지(검증용).</summary>
+        public bool ObservedDetailOpen => detailPanel;
+
+        /// <summary>
+        /// 관찰 기록 자세히: 관찰한 곳의 전체 메모·필수 여부·주민 말을 작은 패널로 보여 준다(왼쪽 페이지 아래). 닫기·Esc로 닫는다.
+        /// 관찰하지 않은 곳은 열지 않는다. 확정 불가 이유·예산 초과 같은 판단 문구는 여기 넣지 않고 아래 띠에 늘 보인다.
+        /// </summary>
+        public void OpenObservedDetail(string problemId)
+        {
+            if (State != FieldState.Notebook || notebookBusy || bookParts == null || !observed.Contains(problemId)) return;
+            var p = Mission.Problem(problemId);
+            if (p == null) return;
+            if (detailPanel) Destroy(detailPanel.gameObject);
+            sound.Play(Sfx.Select);
+            detailProblem = problemId;
+            detailPanel = UIKit.Panel(bookParts.left, "ObservedDetail", Theme.Paper, null, true).rectTransform;
+            detailPanel.Region(0.03f, BandTop, 0.97f, 0.6f);
+            detailPanel.gameObject.AddComponent<Outline>().effectColor = Theme.WithAlpha(Theme.Teal, 0.9f);
+            FieldArt.ProblemIcon(detailPanel, p.kind, 64).Place(new Vector2(0, 1), new Vector2(54, -52), new Vector2(64, 64));
+            UIKit.Text(detailPanel, "Name", (p.required ? "" : "추가 · ") + p.displayName, 32, Theme.Navy, TextAlignmentOptions.MidlineLeft, true)
+                .rectTransform.Region(0, 0.78f, 0.75f, 0.97f).offsetMin = new Vector2(100, 0);
+            string need = p.required ? "필수 대비" : "추가 목표(별 3개 조건)";
+            var body = UIKit.Text(detailPanel, "Body",
+                $"<b>{need}</b> · {Need(p.kind)} 대비\n{p.memo}\n<color=#{ColorUtility.ToHtmlStringRGB(Theme.NavySoft)}>주민: “{p.line}”</color>",
+                25, Theme.Navy, TextAlignmentOptions.TopLeft);
+            body.rectTransform.Region(0.05f, 0.2f, 0.95f, 0.76f);
+            body.lineSpacing = 6;
+            body.enableAutoSizing = true;
+            body.fontSizeMin = 22;
+            body.fontSizeMax = 25;
+            var close = UIKit.Button(detailPanel, "DetailClose", "닫기 (Esc)", CloseObservedDetail, ButtonStyle.Secondary, 24);
+            ((RectTransform)close.transform).Region(0.66f, 0.04f, 0.96f, 0.18f);
+            close.navigation = new Navigation { mode = Navigation.Mode.None };
+            // 키보드로 연 경우에도 바로 닫기 버튼에 선택이 간다(같은 Enter는 이미 처리된 뒤라 닫기를 누르지 않는다).
+            Select(close);
+        }
+
+        public void CloseObservedDetail()
+        {
+            if (!detailPanel) return;
+            Destroy(detailPanel.gameObject);
+            detailPanel = null;
+            inputLockFrame = Time.frameCount;
+            var card = observedRow ? observedRow.Find("Obs_" + detailProblem) : null;
+            Select(card ? card.GetComponent<Selectable>() : SpotButton(SelectedSpot));
         }
 
         void DrawItems()
@@ -381,6 +501,7 @@ namespace ProcurementHero.Field
             h.rectTransform.Fill();
 
             string current = Plan.ItemAt(spot.id);
+            // 선택한 자리의 물품 설명(특징)은 머리글 아래가 아니라 물품 줄 이름 옆 그림으로 대신한다.
             foreach (var item in Mission.items)
             {
                 string itemId = item.id;
@@ -388,39 +509,47 @@ namespace ProcurementHero.Field
                 bool on = current == itemId;
                 var row = UIKit.Button(itemList, "Check_" + itemId, "", () => ToggleItem(itemId), ButtonStyle.Secondary);
                 Destroy(row.transform.Find("Label").gameObject);
-                UIKit.Layout(row, 132);
+                UIKit.Layout(row, Mission.items.Count > 4 ? 104 : 118);
                 ((Image)row.targetGraphic).color = on ? Theme.TealPale : allowed ? Theme.Paper : InkFaint;
                 row.interactable = allowed;
                 var rt = (RectTransform)row.transform;
 
-                FieldArt.ItemIcon(rt, item.visual, 100).Place(new Vector2(0, 0.5f), new Vector2(70, 0), new Vector2(100, 100));
-                var name = UIKit.Text(rt, "Name", item.displayName, 32, allowed ? Theme.Navy : Theme.NavySoft, TextAlignmentOptions.MidlineLeft, true);
-                name.rectTransform.Region(0, 0.5f, 0.62f, 0.95f).offsetMin = new Vector2(140, 0);
-                // 이 자리에 놓으면 닿는 곳: 관찰한 문제 구역만 이름으로 알려 준다(관찰 전 구역은 숨김).
-                string hintText = allowed ? $"{item.hint}\n<b>예상 영향</b> {ReachText(spot, itemId)}" : "이 자리에 설치 불가";
-                var hint = UIKit.Text(rt, "Hint", hintText, 22, allowed ? Theme.TealDark : Theme.Danger, TextAlignmentOptions.MidlineLeft, !allowed);
-                hint.rectTransform.Region(0, 0.04f, 0.62f, 0.52f).offsetMin = new Vector2(140, 0);
-                hint.enableAutoSizing = true;
-                hint.fontSizeMin = 15;
-                hint.fontSizeMax = 22;
+                FieldArt.ItemIcon(rt, item.visual, 84).Place(new Vector2(0, 0.5f), new Vector2(60, 0), new Vector2(84, 84));
+                // 세 줄: 이름 / 특징 / 닿는 곳(관찰한 문제 구역만, 관찰 전 구역은 숨김). 줄마다 한 줄로 자르고 넘치면 말줄임표.
+                // 물품 줄을 고르면 지도에 닿는 곳 테두리가 켜져 전체를 볼 수 있다.
+                var name = UIKit.Text(rt, "Name", item.displayName, 29, allowed ? Theme.Navy : Theme.NavySoft, TextAlignmentOptions.MidlineLeft, true);
+                name.rectTransform.Region(0, 0.64f, 0.7f, 0.98f).offsetMin = new Vector2(120, 0);
+                name.textWrappingMode = TextWrappingModes.NoWrap;
+                var feature = UIKit.Text(rt, "Feature", allowed ? item.hint : "이 자리에 설치 불가", 22, allowed ? Theme.NavySoft : Theme.Danger, TextAlignmentOptions.MidlineLeft, !allowed);
+                feature.rectTransform.Region(0, 0.34f, 0.7f, 0.64f).offsetMin = new Vector2(120, 0);
+                feature.textWrappingMode = TextWrappingModes.NoWrap;
+                feature.overflowMode = TextOverflowModes.Ellipsis;
+                if (allowed)
+                {
+                    var hint = UIKit.Text(rt, "Hint", $"<b>닿는 곳</b> {ReachText(spot, itemId)}", 23, Theme.TealDark, TextAlignmentOptions.MidlineLeft);
+                    hint.rectTransform.Region(0, 0.04f, 0.7f, 0.34f).offsetMin = new Vector2(120, 0);
+                    hint.textWrappingMode = TextWrappingModes.NoWrap;
+                    hint.overflowMode = TextOverflowModes.Ellipsis;
+                    hint.enableAutoSizing = true;
+                    hint.fontSizeMin = 21;
+                    hint.fontSizeMax = 23;
+                }
                 if (allowed)
                 {
                     var hover = row.gameObject.AddComponent<ReachHover>();
                     hover.Changed = on2 => ShowReach(on2 ? itemId : null);
                 }
 
-                var price = UIKit.Rect(rt, "Price").Region(0.62f, 0.2f, 0.8f, 0.8f);
+                var price = UIKit.Rect(rt, "Price").Region(0.7f, 0.2f, 0.84f, 0.8f);
                 UIKit.Shape(price, "Coin", ShapeSprites.Circle, Theme.Hex(0xF2C14E), new Vector2(0, 0.5f), new Vector2(16, 0), new Vector2(28, 28)).raycastTarget = false;
                 UIKit.Text(price, "Cost", item.cost.ToString(), 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true).rectTransform.Fill(36, 0, 0, 0);
 
                 var box = UIKit.Panel(rt, "Box", allowed ? Color.white : Theme.WithAlpha(Color.white, 0.4f)).rectTransform;
-                box.Place(new Vector2(1, 0.5f), new Vector2(-56, 0), new Vector2(68, 68));
+                box.Place(new Vector2(1, 0.5f), new Vector2(-50, 0), new Vector2(62, 62));
                 box.gameObject.AddComponent<Outline>().effectColor = Theme.Navy;
                 if (on) FieldArt.Tick(box, 58, Theme.TealDark).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(58, 58));
                 else if (!allowed) UIKit.Text(box, "No", "×", 40, Theme.Danger, TextAlignmentOptions.Center, true).rectTransform.Fill();
             }
-            var tip = UIKit.Text(itemList, "Tip", "체크하면 이 자리에 하나 놓아요 · 다시 누르면 취소 · 다른 물품은 교체", 20, Theme.NavySoft, TextAlignmentOptions.Center);
-            UIKit.Layout(tip, 40);
         }
 
         string ReachText(FieldSpotEntry spot, string itemId)
@@ -463,22 +592,29 @@ namespace ProcurementHero.Field
         /// <summary>테스트와 자동 확인용.</summary>
         public void SelectSpotForTest(string spotId) => SelectSpot(spotId);
 
+        /// <summary>아래 띠의 전체 계획: 자리마다 물품 그림 + 자리 이름. 칸을 누르면 그 자리를 골라 오른쪽에 전체 이름이 나온다.</summary>
         void DrawPlan()
         {
             UIKit.Clear(planRow);
             foreach (var s in Mission.spots)
             {
-                string item = Plan.ItemAt(s.id);
-                var slot = UIKit.Panel(planRow, "Plan_" + s.id, item != null ? Theme.Paper : InkFaint);
-                if (s.id == SelectedSpot) slot.gameObject.AddComponent<Outline>().effectColor = Theme.Teal;
-                if (item != null) FieldArt.ItemIcon(slot.transform, Mission.Item(item).visual, 54).Place(new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(54, 54));
-                else UIKit.Shape(slot.transform, "Empty", ShapeSprites.Circle, Theme.WithAlpha(Theme.Navy, 0.2f), new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(30, 30)).raycastTarget = false;
-                var t = UIKit.Text(slot.transform, "Name", s.displayName + "\n" + (item != null ? Mission.Item(item).displayName : "비어 있음"), 18,
-                    item != null ? Theme.Navy : Theme.NavySoft, TextAlignmentOptions.MidlineLeft);
-                t.rectTransform.Fill(74, 6, 4, 4);
+                string spotId = s.id;
+                string item = Plan.ItemAt(spotId);
+                var slot = UIKit.Button(planRow, "Plan_" + spotId, "", () => SelectSpot(spotId), ButtonStyle.Secondary);
+                Destroy(slot.transform.Find("Label").gameObject);
+                ((Image)slot.targetGraphic).color = item != null ? Theme.Paper : InkFaint;
+                var rt = (RectTransform)slot.transform;
+                if (spotId == SelectedSpot) slot.gameObject.AddComponent<Outline>().effectColor = Theme.Teal;
+                if (item != null) FieldArt.ItemIcon(rt, Mission.Item(item).visual, 54).Place(new Vector2(0.5f, 1f), new Vector2(0, -36), new Vector2(54, 54));
+                else UIKit.Shape(rt, "Empty", ShapeSprites.Circle, Theme.WithAlpha(Theme.Navy, 0.2f), new Vector2(0.5f, 1f), new Vector2(0, -36), new Vector2(30, 30)).raycastTarget = false;
+                var t = UIKit.Text(rt, "Name", s.displayName, 22, item != null ? Theme.Navy : Theme.NavySoft, TextAlignmentOptions.Center, item != null);
+                t.rectTransform.Region(0, 0, 1, 0.42f).offsetMin = new Vector2(6, 2);
+                t.rectTransform.offsetMax = new Vector2(-6, 0);
+                t.textWrappingMode = TextWrappingModes.NoWrap;
+                t.overflowMode = TextOverflowModes.Ellipsis;
                 t.enableAutoSizing = true;
-                t.fontSizeMin = 13;
-                t.fontSizeMax = 18;
+                t.fontSizeMin = 20;
+                t.fontSizeMax = 22;
             }
         }
 
@@ -513,11 +649,12 @@ namespace ProcurementHero.Field
                     color = Theme.Success;
                     break;
             }
-            var t = UIKit.Text(reasonRow, "Text", text, 21, color, TextAlignmentOptions.MidlineLeft, true);
+            var t = UIKit.Text(reasonRow, "Text", text, 24, color, TextAlignmentOptions.MidlineLeft, true);
             t.rectTransform.Fill(44, 0, 0, 0);
+            t.textWrappingMode = TextWrappingModes.NoWrap;
             t.enableAutoSizing = true;
-            t.fontSizeMin = 14;
-            t.fontSizeMax = 21;
+            t.fontSizeMin = 21;
+            t.fontSizeMax = 24;
         }
     
         IEnumerator TweenGauge(int target)
@@ -668,17 +805,17 @@ namespace ProcurementHero.Field
             recommendShown = false;
             recommendPanel = NewHelpPanel();
             HintText = HintSentence(FieldRules.Hint(Spec, Plan, observed));
-            UIKit.Text(recommendPanel, "Title", "AI 단서 <size=20>(관찰한 곳 · 지금 계획 기준)</size>", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true)
+            UIKit.Text(recommendPanel, "Title", "AI 단서 <size=22><color=#55607E>관찰한 곳 · 지금 계획 기준</color></size>", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true)
                 .rectTransform.Region(0.14f, 0.86f, 0.98f, 0.98f);
             var body = UIKit.Text(recommendPanel, "Body", HintText, 30, Theme.Navy, TextAlignmentOptions.MidlineLeft);
             body.rectTransform.Region(0.07f, 0.3f, 0.95f, 0.8f);
             body.enableAutoSizing = true;
-            body.fontSizeMin = 18;
+            body.fontSizeMin = 24;
             body.fontSizeMax = 30;
             var bar = UIKit.Rect(recommendPanel, "Buttons").Region(0.05f, 0.03f, 0.95f, 0.17f);
             UIKit.HorizontalList(bar, 16);
-            var close = UIKit.Button(bar, "Cancel", "닫기", CloseRecommend, ButtonStyle.Primary, 24);
-            var more = UIKit.Button(bar, "ShowPlan", "배치안까지 보기", ShowRecommendation, ButtonStyle.Secondary, 22);
+            var close = UIKit.Button(bar, "Cancel", "닫기", CloseRecommend, ButtonStyle.Primary, 26);
+            var more = UIKit.Button(bar, "ShowPlan", "배치안까지 보기", ShowRecommendation, ButtonStyle.Secondary, 26);
             UIKit.ChainNavigation(new Selectable[] { close, more }, false);
             Select(close);
         }
@@ -694,33 +831,42 @@ namespace ProcurementHero.Field
             recommendPanel = NewHelpPanel();
             var eval = FieldRules.Evaluate(Spec, recommended);
             var now = FieldRules.Evaluate(Spec, Plan);
-            string Seen(FieldEvaluation e)
-            {
-                var names = Mission.problems.Where(p => observed.Contains(p.id) && e.IsSolved(p.id)).Select(p => p.displayName).ToList();
-                return names.Count > 0 ? string.Join(" · ", names) : "없음";
-            }
-            UIKit.Text(recommendPanel, "Title", "가상 실증 배치안 <size=20>(관찰한 곳 기준)</size>", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true)
+            UIKit.Text(recommendPanel, "Title", "가상 실증 배치안 <size=22><color=#55607E>관찰한 곳 기준</color></size>", 30, Theme.Navy, TextAlignmentOptions.MidlineLeft, true)
                 .rectTransform.Region(0.14f, 0.86f, 0.98f, 0.98f);
+            // 기본 화면: 지점별 물품 목록과 예산·대비 비교만. 고르는 방식 설명은 '설명' 버튼으로 바꿔 본다.
             var lines = Mission.spots.Select(sp =>
             {
                 var item = recommended.ItemAt(sp.id);
                 return $"<b>{sp.displayName}</b>  {(item != null ? Mission.Item(item).displayName : "<color=#8A90A6>비워 둠</color>")}";
             });
-            var body = UIKit.Text(recommendPanel, "Body",
-                string.Join("\n", lines) +
-                $"\n\n<b>배치안</b> 예산 {eval.Cost} / {Mission.budget} · 대비 {Seen(eval)}" +
-                $"\n<b>지금 계획</b> 예산 {now.Cost} / {Mission.budget} · 대비 {Seen(now)}\n" +
-                "<size=19><color=#55607E>관찰한 필수 문제 → 관찰한 추가 목표 → 낮은 비용 순으로 고른 비교안이에요. 적용해도 직접 고칠 수 있고, 승인은 따로 해요.</color></size>",
-                24, Theme.Navy, TextAlignmentOptions.TopLeft);
+            int seenCount = Mission.problems.Count(p => observed.Contains(p.id));
+            string Covered(FieldEvaluation e) => $"대비 {Mission.problems.Count(p => observed.Contains(p.id) && e.IsSolved(p.id))}/{seenCount}곳";
+            string Budget(FieldEvaluation e) => e.Cost > Mission.budget
+                ? $"<color=#{ColorUtility.ToHtmlStringRGB(Theme.Danger)}>예산 {e.Cost}/{Mission.budget} △ 초과</color>"
+                : $"예산 {e.Cost}/{Mission.budget}";
+            string planText = string.Join("\n", lines) +
+                              $"\n\n<b>배치안</b>  {Budget(eval)} · {Covered(eval)}" +
+                              $"\n<b>지금 계획</b>  {Budget(now)} · {Covered(now)}";
+            const string explain = "관찰한 필수 문제 → 관찰한 추가 목표 → 낮은 비용 순으로 고른 비교안이에요.\n" +
+                                   "관찰하지 않은 곳은 고려하지 않아요. 적용해도 직접 고칠 수 있고, 승인은 따로 해요.";
+            var body = UIKit.Text(recommendPanel, "Body", planText, 25, Theme.Navy, TextAlignmentOptions.TopLeft);
             body.rectTransform.Region(0.05f, 0.2f, 0.97f, 0.84f);
+            body.lineSpacing = 4;
             body.enableAutoSizing = true;
-            body.fontSizeMin = 15;
-            body.fontSizeMax = 24;
-            var bar = UIKit.Rect(recommendPanel, "Buttons").Region(0.05f, 0.03f, 0.95f, 0.17f);
-            UIKit.HorizontalList(bar, 16);
-            var cancel = UIKit.Button(bar, "Cancel", "취소", CloseRecommend, ButtonStyle.Secondary, 24);
-            var apply = UIKit.Button(bar, "Apply", "이 계획 적용", ApplyRecommend, ButtonStyle.Primary, 24);
-            UIKit.ChainNavigation(new Selectable[] { cancel, apply }, false);
+            body.fontSizeMin = 22;
+            body.fontSizeMax = 25;
+            var bar = UIKit.Rect(recommendPanel, "Buttons").Region(0.04f, 0.03f, 0.96f, 0.17f);
+            UIKit.HorizontalList(bar, 12);
+            var cancel = UIKit.Button(bar, "Cancel", "취소", CloseRecommend, ButtonStyle.Secondary, 26);
+            Button about = null;
+            about = UIKit.Button(bar, "About", "설명", () =>
+            {
+                bool showing = body.text == explain;
+                body.text = showing ? planText : explain;
+                UIKit.SetLabel(about, showing ? "설명" : "배치안");
+            }, ButtonStyle.Secondary, 26);
+            var apply = UIKit.Button(bar, "Apply", "이 계획 적용", ApplyRecommend, ButtonStyle.Primary, 26);
+            UIKit.ChainNavigation(new Selectable[] { cancel, about, apply }, false);
             // 지도 위 반투명 표시: 추천 물품을 설치 자리에 흐리게 겹쳐 그린다.
             foreach (var sp in Mission.spots)
             {

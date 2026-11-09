@@ -48,6 +48,11 @@ namespace ProcurementHero.EditorTools
         }
 
         /// <summary>상황 전 초기 징후 세기와, 상황이 일어난 뒤 해결하지 못했을 때 대사.</summary>
+        static void Clue(FieldMissionData m, params (string id, string clue)[] clues)
+        {
+            foreach (var (id, clue) in clues) m.Problem(id).clue = clue;
+        }
+
         static void Early(FieldMissionData m, params (string id, float level, string eventLine)[] signs)
         {
             foreach (var (id, level, eventLine) in signs)
@@ -97,6 +102,7 @@ namespace ProcurementHero.EditorTools
                     new Vector2(11.5f, -5.6f), "저녁 산책길이 어두워질까 봐 걱정돼요", "밤에도 공원을 걸을 수 있겠어요")
             };
             Memo(m1, ("A", "저녁 보행 많음 · 조명 없음"), ("B", "계단 끝 그늘 · 발 헛디딜 위험"), ("C", "골목 안 불빛 없음"), ("D", "공원 산책길 조명 없음"));
+            Clue(m1, ("A", "저녁 보행 많음 · 조명 없음"), ("B", "계단 끝 그늘 · 헛디딤 위험"), ("C", "골목 안 불빛 없음"), ("D", "산책길 조명 없음"));
             Early(m1, ("A", 0.12f, "입구가 어두워서 무서워요"), ("B", 0.15f, "계단이 잘 안 보여요"), ("C", 0.15f, "골목이 너무 깜깜해요"), ("D", 0.1f, "공원이 어두워 산책을 못 해요"));
             m1.items = new List<FieldItemEntry>
             {
@@ -154,6 +160,7 @@ namespace ProcurementHero.EditorTools
                     new Vector2(-5.4f, -3.4f), "오후엔 여기 줄이 길어진대요. 햇볕이 걱정이에요", "이제 밖에서 기다리기 한결 나아요")
             };
             Memo(m2, ("H", "실내만 식힐 때는 작은 장치로도 충분."), ("W", "복도 쉼터 물통이 빔"), ("O", "현관의 넓은 장치는 바깥 대기 공간까지 대응."));
+            Clue(m2, ("H", "실내만 · 작은 장치로 충분"), ("W", "쉼터 물통이 빔"), ("O", "넓은 장치는 바깥까지 대응"));
             Early(m2, ("H", 0.3f, "대기실이 너무 더워요"), ("W", 1f, "물통이 비어서 마실 물이 없어요"), ("O", 0.25f, "햇볕 아래서 기다리기 힘들어요"));
             m2.items = new List<FieldItemEntry>
             {
@@ -229,6 +236,7 @@ namespace ProcurementHero.EditorTools
                     new Vector2(11.4f, 1.6f), "옆길로 빗물이 조금씩 흘러들어요", "이제 옆길로도 다닐 수 있어요")
             };
             Memo(m3, ("P", "배전반 하나뿐 · 비상전원 없음"), ("R", "얕게 고인 물 · 강우 증가 시 진입로 침수 위험"), ("B", "옆길로 빗물이 흘러듦"));
+            Clue(m3, ("P", "배전반뿐 · 비상전원 없음"), ("R", "얕은 물 · 비 오면 침수"), ("B", "옆길로 빗물 흘러듦"));
             Early(m3, ("P", 0f, "불이 꺼져서 불안해요"), ("R", 0.35f, "정문 길에 물이 차서 못 들어가요"), ("B", 0.12f, "옆길도 물에 잠겼어요"));
             m3.items = new List<FieldItemEntry>
             {

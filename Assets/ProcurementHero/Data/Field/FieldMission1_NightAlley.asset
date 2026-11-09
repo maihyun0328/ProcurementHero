@@ -44,6 +44,7 @@ MonoBehaviour:
     solvedLine: "\uC785\uAD6C\uAC00 \uD658\uD574\uC84C\uC5B4\uC694!"
     earlyLevel: 0.12
     memo: "\uC800\uB141 \uBCF4\uD589 \uB9CE\uC74C \xB7 \uC870\uBA85 \uC5C6\uC74C"
+    clue: "\uC800\uB141 \uBCF4\uD589 \uB9CE\uC74C \xB7 \uC870\uBA85 \uC5C6\uC74C"
   - id: B
     displayName: "\uACC4\uB2E8"
     kind: 0
@@ -60,6 +61,7 @@ MonoBehaviour:
       \uBCF4\uC774\uB124\uC694."
     earlyLevel: 0.15
     memo: "\uACC4\uB2E8 \uB05D \uADF8\uB298 \xB7 \uBC1C \uD5DB\uB514\uB51C \uC704\uD5D8"
+    clue: "\uACC4\uB2E8 \uB05D \uADF8\uB298 \xB7 \uD5DB\uB514\uB524 \uC704\uD5D8"
   - id: C
     displayName: "\uC548\uCABD \uACE8\uBAA9"
     kind: 0
@@ -76,6 +78,7 @@ MonoBehaviour:
       \uC218 \uC788\uC5B4\uC694"
     earlyLevel: 0.15
     memo: "\uACE8\uBAA9 \uC548 \uBD88\uBE5B \uC5C6\uC74C"
+    clue: "\uACE8\uBAA9 \uC548 \uBD88\uBE5B \uC5C6\uC74C"
   - id: D
     displayName: "\uACF5\uC6D0"
     kind: 0
@@ -91,6 +94,7 @@ MonoBehaviour:
     solvedLine: "\uBC24\uC5D0\uB3C4 \uACF5\uC6D0\uC744 \uAC78\uC744 \uC218 \uC788\uACA0\uC5B4\uC694"
     earlyLevel: 0.1
     memo: "\uACF5\uC6D0 \uC0B0\uCC45\uAE38 \uC870\uBA85 \uC5C6\uC74C"
+    clue: "\uC0B0\uCC45\uAE38 \uC870\uBA85 \uC5C6\uC74C"
   items:
   - id: streetlamp
     displayName: "\uAC00\uB85C\uB4F1"

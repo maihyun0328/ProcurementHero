@@ -65,7 +65,8 @@ namespace ProcurementHero.Field
         [TextArea(1, 2)] public string solvedLine;
         [Tooltip("상황 전에 보이는 초기 징후 세기(0: 아직 없음, 1: 이미 심함). 상황이 일어나면 1이 된다.")]
         [Range(0, 1)] public float earlyLevel;
-        [Tooltip("관찰 후 수첩에 남는 한 줄 메모")] public string memo;
+        [Tooltip("관찰 후 수첩 '자세히'에 남는 메모(전체 문장)")] public string memo;
+        [Tooltip("관찰 기록 카드에 한 줄로 보이는 핵심 단서(짧게, 약 15자). 비우면 memo")] public string clue;
     }
 
     [Serializable]

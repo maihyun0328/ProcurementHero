@@ -199,6 +199,7 @@ namespace ProcurementHero.Tests
             {
                 var asset = database.missions.First(m => m.id == seed.Data.id);
                 Assert.AreEqual(seed.Data.budget, asset.budget, asset.name);
+                CollectionAssert.AreEqual(seed.Data.problems.Select(p => p.memo + "|" + p.clue), asset.problems.Select(p => p.memo + "|" + p.clue), asset.name);
                 CollectionAssert.AreEqual(seed.Data.items.Select(i => i.id + ":" + i.cost), asset.items.Select(i => i.id + ":" + i.cost), asset.name);
                 CollectionAssert.AreEqual(
                     seed.Data.spots.SelectMany(s => s.options.Select(o => s.id + ":" + o.itemId + ">" + string.Join("+", o.solves))),
@@ -219,6 +220,19 @@ namespace ProcurementHero.Tests
                     asset.reactions.Select(r => $"{r.spotId}/{r.itemId}/{r.problemId}/{r.line}/{r.moveResident}/{r.residentPosition}"), asset.name);
                 Object.DestroyImmediate(seed.Data);
             }
+        }
+
+        [Test]
+        public void ObservedClueFitsOneCardLine()
+        {
+            // 관찰 카드 한 줄(1366×768에서 약 16px 글자)에 들어가도록 짧게. 긴 설명은 memo(자세히)에 둔다.
+            foreach (var m in database.missions)
+                foreach (var p in m.problems)
+                {
+                    Assert.IsFalse(string.IsNullOrEmpty(p.clue), m.id + "/" + p.id);
+                    Assert.LessOrEqual(p.clue.Length, 16, m.id + "/" + p.id + " " + p.clue);
+                    Assert.IsFalse(string.IsNullOrEmpty(p.memo), m.id + "/" + p.id);
+                }
         }
 
         [Test]

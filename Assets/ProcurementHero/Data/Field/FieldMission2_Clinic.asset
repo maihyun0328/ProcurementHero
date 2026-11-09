@@ -48,6 +48,7 @@ MonoBehaviour:
     earlyLevel: 0.3
     memo: "\uC2E4\uB0B4\uB9CC \uC2DD\uD790 \uB54C\uB294 \uC791\uC740 \uC7A5\uCE58\uB85C\uB3C4
       \uCDA9\uBD84."
+    clue: "\uC2E4\uB0B4\uB9CC \xB7 \uC791\uC740 \uC7A5\uCE58\uB85C \uCDA9\uBD84"
   - id: W
     displayName: "\uBCF5\uB3C4 \uC27C\uD130"
     kind: 2
@@ -64,6 +65,7 @@ MonoBehaviour:
       \uC218 \uC788\uACA0\uC5B4\uC694."
     earlyLevel: 1
     memo: "\uBCF5\uB3C4 \uC27C\uD130 \uBB3C\uD1B5\uC774 \uBE54"
+    clue: "\uC27C\uD130 \uBB3C\uD1B5\uC774 \uBE54"
   - id: O
     displayName: "\uBC14\uAE65 \uC904"
     kind: 1
@@ -81,6 +83,7 @@ MonoBehaviour:
     earlyLevel: 0.25
     memo: "\uD604\uAD00\uC758 \uB113\uC740 \uC7A5\uCE58\uB294 \uBC14\uAE65 \uB300\uAE30
       \uACF5\uAC04\uAE4C\uC9C0 \uB300\uC751."
+    clue: "\uB113\uC740 \uC7A5\uCE58\uB294 \uBC14\uAE65\uAE4C\uC9C0 \uB300\uC751"
   items:
   - id: aircon
     displayName: "\uB0C9\uBC29\uC7A5\uCE58"

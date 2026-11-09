@@ -47,6 +47,7 @@ MonoBehaviour:
     solvedLine: "\uBD88\uC774 \uCF1C\uC838\uC11C \uC548\uC2EC\uB3FC\uC694"
     earlyLevel: 0
     memo: "\uBC30\uC804\uBC18 \uD558\uB098\uBFD0 \xB7 \uBE44\uC0C1\uC804\uC6D0 \uC5C6\uC74C"
+    clue: "\uBC30\uC804\uBC18\uBFD0 \xB7 \uBE44\uC0C1\uC804\uC6D0 \uC5C6\uC74C"
   - id: R
     displayName: "\uC815\uBB38 \uC9C4\uC785\uB85C"
     kind: 4
@@ -64,6 +65,7 @@ MonoBehaviour:
     earlyLevel: 0.35
     memo: "\uC595\uAC8C \uACE0\uC778 \uBB3C \xB7 \uAC15\uC6B0 \uC99D\uAC00 \uC2DC
       \uC9C4\uC785\uB85C \uCE68\uC218 \uC704\uD5D8"
+    clue: "\uC595\uC740 \uBB3C \xB7 \uBE44 \uC624\uBA74 \uCE68\uC218"
   - id: B
     displayName: "\uBCF4\uC870 \uD1B5\uB85C"
     kind: 4
@@ -78,6 +80,7 @@ MonoBehaviour:
     solvedLine: "\uC774\uC81C \uC606\uAE38\uB85C\uB3C4 \uB2E4\uB2D0 \uC218 \uC788\uC5B4\uC694"
     earlyLevel: 0.12
     memo: "\uC606\uAE38\uB85C \uBE57\uBB3C\uC774 \uD758\uB7EC\uB4E6"
+    clue: "\uC606\uAE38\uB85C \uBE57\uBB3C \uD758\uB7EC\uB4E6"
   items:
   - id: generator
     displayName: "\uBE44\uC0C1\uC804\uC6D0"
