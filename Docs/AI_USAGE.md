@@ -75,6 +75,7 @@
 | 2026-11-06 | 3차: 실제 입력 검증(원인은 자동 조작 환경), 보건소 냉방 단서, 엔딩 글 줄이기·주민 중심 연출, 진행 자동 저장·이어하기 | `FieldSave.cs`(새 파일), `FieldGame.cs`, `FieldGame.Notebook.cs`, `FieldGame.Screens.cs`, `FieldWorld.cs`, `DefaultFieldData.cs`, `Data/Field/FieldMission2_Clinic.asset`, `FieldDataTests.cs`, `FieldSaveTests.cs`(새 파일), `Docs/**` | (기록해 주세요) |
 | 2026-11-06~07 | 4차: '조달 히어로: 내일을 준비하는 수첩' — AI 예측 확인, 상황 전 현장, 승인 뒤 시간 경과·상황 발생·시설 자동 대응, 디지털 트윈 지도, 추천안 비교, 엔딩 문구, 저장 유지 | `FieldRules.cs`(Recommend), `FieldMissionData.cs`(예측·시각·상황 문구·초기 징후·대응 문구·이용객), `FieldWorld.cs`(hazard·respond, 시나리오), `FieldGame*.cs`(Scenario 상태·HUD·추천·선택 보호), `FieldArt.cs`(예측 아이콘), `DefaultFieldData.cs`, `Data/Field/*.asset`, `FieldDataTests.cs`, `FieldFutureFlowTests.cs`(새 파일), `Docs/**` | (기록해 주세요) |
 | 2026-11-07 | 5차: 빈 재계획 저장·복원 오류, 대피소 주민 이동과 배수 결과 일치, AI 도움 단계화(AI 단서 → 배치안), 앱 시작 연출 | `FieldSave.cs`, `FieldWorld.cs`, `FieldMissionData.cs`, `DefaultFieldData.cs`, `Data/Field/*.asset`, `FieldRules.cs`, `FieldGame.Notebook.cs`, `FieldGame.cs`, `FieldGame.Screens.cs`, `FieldGame.Intro.cs`(새 파일), 테스트 3개 파일, `Docs/**` | (기록해 주세요) |
+| 2026-11-09 | 6차: 침수 그림·통행 범위 일치와 갇힘 방지, 완주 뒤 현장 선택·재도전, 수첩 가독성(관찰 카드·자세히·배치안 정리), 시작 연출 실제 속도 기록과 페이드·음량 보정 | `FieldWorld.cs`, `FieldValidator.cs`, `DefaultFieldData.cs`, `Data/Field/*.asset`, `FieldMissionData.cs`, `FieldRules.cs`(SubmitRetry), `FieldSave.cs`, `FieldGame*.cs`, `AudioService.cs`, 테스트 3개 파일, `Docs/**` | (기록해 주세요) |
 
 ### 게임 속 가상 AI와 제작용 AI의 구분 (4차)
 
